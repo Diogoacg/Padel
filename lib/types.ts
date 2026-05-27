@@ -4,11 +4,14 @@ export type PlayerRecord = {
   rating: number;
   matches: number;
   wins: number;
+  inactivity_penalty: number;
+  last_decay_at: string | null;
   created_at: string;
 };
 
 export type MatchRecord = {
   id: string;
+  season_id: string | null;
   played_at: string;
   team_a_player_1: string;
   team_a_player_2: string;
@@ -23,5 +26,16 @@ export type MatchRecord = {
   set_3_a: number;
   set_3_b: number;
   rating_delta: number;
+  created_at: string;
+};
+
+export type SeasonRecord = {
+  id: string;
+  name: string;
+  starts_at: string;
+  ends_at: string | null;
+  active: boolean;
+  semester_year: number | null;
+  semester_half: number | null;
   created_at: string;
 };

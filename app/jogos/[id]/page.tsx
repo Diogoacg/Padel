@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, CalendarDays, Gauge, Swords, Trash2, Trophy } from "lucide-react";
+import { ArrowLeft, CalendarDays, Gauge, Pencil, Swords, Trash2, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useRouter } from "next/navigation";
@@ -10,8 +10,6 @@ import {
   getMatch,
   getPlayers,
   deleteMatch,
-  revertMatchStats,
-  updatePlayers,
   type Match,
   type Player
 } from "@/lib/padel-data";
@@ -56,17 +54,11 @@ export default function MatchPage() {
     const confirmed = window.confirm("Apagar este jogo e corrigir o ranking?");
     if (!confirmed) return;
 
-    const nextPlayers = revertMatchStats(players, match);
-    const changedPlayers = nextPlayers.filter((player) =>
-      [...match.teamA, ...match.teamB].includes(player.id)
-    );
-
     try {
       setDeleting(true);
       setError("");
       await deleteMatch(match.id);
-      await updatePlayers(changedPlayers);
-      router.push("/");
+      router.push("/jogos");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Erro a apagar o jogo.");
     } finally {
@@ -94,6 +86,13 @@ export default function MatchPage() {
             winner={winner}
           />
           <div className="detailPanel">
+            <div className="detailActions">
+              <Link className="textButton" href={`/jogos/${match.id}/editar`}>
+                <Pencil size={16} aria-hidden="true" />
+                Corrigir jogo
+              </Link>
+            </div>
+
             <div className="detailMetrics">
               <MiniStat
                 icon={<CalendarDays />}

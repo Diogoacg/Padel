@@ -2,9 +2,16 @@ import type { Match, Player, SetScore } from "@/lib/padel-data";
 
 export type MatchFormSets = [SetScore, SetScore, SetScore];
 
-export const ratingDelta = (winnerAverage: number, loserAverage: number) => {
+const ELO_K = 24;
+
+export const ratingDelta = (
+  winnerAverage: number,
+  loserAverage: number,
+  sets: MatchFormSets,
+  winnerSide: "a" | "b"
+) => {
   const expected = 1 / (1 + Math.pow(10, (loserAverage - winnerAverage) / 400));
-  return Math.max(1, Math.round(28 * (1 - expected)));
+  return Math.max(1, Math.round(ELO_K * (1 - expected) * marginMultiplier(sets, winnerSide)));
 };
 
 export function averageRating(players: Player[], ids: string[]) {
@@ -58,4 +65,25 @@ export function calculateMatchScore(sets: MatchFormSets) {
   }
 
   return { valid: true, message: "", scoreA, scoreB };
+}
+
+function marginMultiplier(sets: MatchFormSets, winnerSide: "a" | "b") {
+  const playedSets = sets.filter((set, index) => index < 2 || set.a + set.b > 0);
+  const winnerSets = playedSets.filter((set) =>
+    winnerSide === "a" ? set.a > set.b : set.b > set.a
+  );
+  const loserSets = playedSets.length - winnerSets.length;
+  const straightSets = winnerSets.length === 2 && loserSets === 0;
+  let multiplier = straightSets ? 1 : 0.85;
+
+  for (const set of winnerSets) {
+    const winnerGames = winnerSide === "a" ? set.a : set.b;
+    const loserGames = winnerSide === "a" ? set.b : set.a;
+    const gap = winnerGames - loserGames;
+
+    if (gap >= 4) multiplier += 0.05;
+    if (loserGames === 0) multiplier += 0.1;
+  }
+
+  return Math.min(1.3, multiplier);
 }

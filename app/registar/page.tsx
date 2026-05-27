@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   createMatch,
   getPlayers,
-  updatePlayers,
   type Player
 } from "@/lib/padel-data";
 import {
@@ -80,29 +79,13 @@ export default function RegisterPage() {
     const teamAWon = matchScore.scoreA > matchScore.scoreB;
     const winners = teamAWon ? teamA : teamB;
     const losers = teamAWon ? teamB : teamA;
+    const winnerSide = teamAWon ? "a" : "b";
     const delta = ratingDelta(
       averageRating(players, winners),
-      averageRating(players, losers)
+      averageRating(players, losers),
+      form.sets,
+      winnerSide
     );
-
-    const nextPlayers = players.map((player) => {
-      if (winners.includes(player.id)) {
-        return {
-          ...player,
-          rating: player.rating + delta,
-          matches: player.matches + 1,
-          wins: player.wins + 1
-        };
-      }
-      if (losers.includes(player.id)) {
-        return {
-          ...player,
-          rating: Math.max(0, player.rating - delta),
-          matches: player.matches + 1
-        };
-      }
-      return player;
-    });
 
     try {
       setSaving(true);
@@ -116,8 +99,8 @@ export default function RegisterPage() {
         sets: form.sets,
         ratingDelta: delta
       });
-      await updatePlayers(nextPlayers.filter((player) => ids.includes(player.id)));
-      setPlayers(nextPlayers);
+      const loadedPlayers = await getPlayers();
+      setPlayers(loadedPlayers);
       setForm((current) => ({ ...emptyForm(), a1: current.a1, a2: current.a2, b1: current.b1, b2: current.b2 }));
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Erro a guardar jogo.");
@@ -129,7 +112,7 @@ export default function RegisterPage() {
   return (
     <main className="shell appShell">
       <section className="compactHeader">
-        <p className="eyebrow">Mais uma racha</p>
+        <p className="eyebrow">Mais um Jogo</p>
         <h1>Registar jogo</h1>
       </section>
 
