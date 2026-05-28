@@ -2,12 +2,10 @@
 
 import { AlertCircle, Save } from "lucide-react";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
-import {
-  createMatch,
-  getPlayers,
-  type Player
-} from "@/lib/padel-data";
+import { useEffect, useState } from "react";
+import { SkeletonBlock } from "@/app/components/LoadingSkeleton";
+import { useCreateMatch, usePlayers } from "@/lib/padel-queries";
+import type { Player } from "@/lib/padel-data";
 import {
   averageRating,
   calculateMatchScore,
@@ -34,26 +32,31 @@ const emptyForm = (): MatchForm => ({
 });
 
 export default function RegisterPage() {
-  const [players, setPlayers] = useState<Player[]>([]);
   const [form, setForm] = useState<MatchForm>(emptyForm);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  const loadPlayers = useCallback(async () => {
-    const loadedPlayers = await getPlayers();
-    setPlayers(loadedPlayers);
-    setForm((current) => ({
-      ...current,
-      a1: current.a1 || loadedPlayers[0]?.id || "",
-      a2: current.a2 || loadedPlayers[1]?.id || "",
-      b1: current.b1 || loadedPlayers[2]?.id || "",
-      b2: current.b2 || loadedPlayers[3]?.id || ""
-    }));
-  }, []);
+  const playersQuery = usePlayers();
+  const createMatchMutation = useCreateMatch();
+  const players = playersQuery.data ?? [];
+  const loadingPlayers = playersQuery.isLoading;
+  const saving = createMatchMutation.isPending;
 
   useEffect(() => {
-    void loadPlayers();
-  }, [loadPlayers]);
+    if (players.length > 0) {
+      setForm((current) => ({
+        ...current,
+        a1: current.a1 || players[0]?.id || "",
+        a2: current.a2 || players[1]?.id || "",
+        b1: current.b1 || players[2]?.id || "",
+        b2: current.b2 || players[3]?.id || ""
+      }));
+    }
+  }, [players]);
+
+  useEffect(() => {
+    if (playersQuery.error) {
+      setError(playersQuery.error instanceof Error ? playersQuery.error.message : "Nao consegui carregar jogadores.");
+    }
+  }, [playersQuery.error]);
 
   const registerMatch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -88,9 +91,8 @@ export default function RegisterPage() {
     );
 
     try {
-      setSaving(true);
       setError("");
-      await createMatch({
+      await createMatchMutation.mutateAsync({
         playedAt: form.playedAt,
         teamA,
         teamB,
@@ -99,13 +101,9 @@ export default function RegisterPage() {
         sets: form.sets,
         ratingDelta: delta
       });
-      const loadedPlayers = await getPlayers();
-      setPlayers(loadedPlayers);
       setForm((current) => ({ ...emptyForm(), a1: current.a1, a2: current.a2, b1: current.b1, b2: current.b2 }));
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Erro a guardar jogo.");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -134,24 +132,28 @@ export default function RegisterPage() {
             />
           </label>
 
-          <div className="teams">
-            <TeamSelect
-              title="Equipa A"
-              first={form.a1}
-              second={form.a2}
-              players={players}
-              onFirst={(a1) => setForm({ ...form, a1 })}
-              onSecond={(a2) => setForm({ ...form, a2 })}
-            />
-            <TeamSelect
-              title="Equipa B"
-              first={form.b1}
-              second={form.b2}
-              players={players}
-              onFirst={(b1) => setForm({ ...form, b1 })}
-              onSecond={(b2) => setForm({ ...form, b2 })}
-            />
-          </div>
+          {loadingPlayers ? (
+            <TeamSelectSkeleton />
+          ) : (
+            <div className="teams">
+              <TeamSelect
+                title="Equipa A"
+                first={form.a1}
+                second={form.a2}
+                players={players}
+                onFirst={(a1) => setForm({ ...form, a1 })}
+                onSecond={(a2) => setForm({ ...form, a2 })}
+              />
+              <TeamSelect
+                title="Equipa B"
+                first={form.b1}
+                second={form.b2}
+                players={players}
+                onFirst={(b1) => setForm({ ...form, b1 })}
+                onSecond={(b2) => setForm({ ...form, b2 })}
+              />
+            </div>
+          )}
 
           <div className="setBoard">
             {form.sets.map((set, index) => (
@@ -189,13 +191,27 @@ export default function RegisterPage() {
             ))}
           </div>
 
-          <button className="primary" disabled={saving || players.length < 4} type="submit">
+          <button className="primary" disabled={saving || loadingPlayers || players.length < 4} type="submit">
             <Save size={16} aria-hidden="true" />
             {saving ? "A apontar..." : "Fechar resultado"}
           </button>
         </form>
       </section>
     </main>
+  );
+}
+
+function TeamSelectSkeleton() {
+  return (
+    <div className="teams" aria-label="A carregar jogadores">
+      {Array.from({ length: 2 }).map((_, index) => (
+        <fieldset className="skeletonTeamSelect" key={index}>
+          <SkeletonBlock className="skeletonLine short" />
+          <SkeletonBlock className="skeletonSelect" />
+          <SkeletonBlock className="skeletonSelect" />
+        </fieldset>
+      ))}
+    </div>
   );
 }
 

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BottomNav } from "@/app/components/BottomNav";
+import { QueryProvider } from "@/app/components/QueryProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,8 +16,10 @@ export default function RootLayout({
   return (
     <html lang="pt">
       <body>
-        {children}
-        <BottomNav />
+        <QueryProvider>
+          {children}
+          <BottomNav />
+        </QueryProvider>
       </body>
     </html>
   );

@@ -5,46 +5,33 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  getActiveSeason,
-  getMatches,
-  getPlayer,
-  getPlayers,
-  type Match,
-  type Player
-} from "@/lib/padel-data";
+import { ListSkeleton, SkeletonBlock } from "@/app/components/LoadingSkeleton";
+import { useActiveSeason, useMatches, usePlayer, usePlayers } from "@/lib/padel-queries";
+import type { Match, Player } from "@/lib/padel-data";
 
 export default function PlayerPage() {
   const params = useParams<{ id: string }>();
-  const [player, setPlayer] = useState<Player | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const activeSeasonQuery = useActiveSeason();
+  const playerQuery = usePlayer(params.id);
+  const playersQuery = usePlayers();
+  const matchesQuery = useMatches(activeSeasonQuery.data?.id, !activeSeasonQuery.isLoading);
+  const player = playerQuery.data ?? null;
+  const players = playersQuery.data ?? [];
+  const matches = matchesQuery.data ?? [];
+  const loading =
+    playerQuery.isLoading ||
+    playersQuery.isLoading ||
+    activeSeasonQuery.isLoading ||
+    matchesQuery.isLoading;
 
   useEffect(() => {
-    async function loadPlayer() {
-      try {
-        setLoading(true);
-        setError("");
-        const loadedSeason = await getActiveSeason();
-        const [loadedPlayer, loadedPlayers, loadedMatches] = await Promise.all([
-          getPlayer(params.id),
-          getPlayers(),
-          getMatches(loadedSeason?.id)
-        ]);
-        setPlayer(loadedPlayer);
-        setPlayers(loadedPlayers);
-        setMatches(loadedMatches);
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Erro a abrir a ficha.");
-      } finally {
-        setLoading(false);
-      }
+    const queryError =
+      playerQuery.error ?? playersQuery.error ?? activeSeasonQuery.error ?? matchesQuery.error;
+    if (queryError) {
+      setError(queryError instanceof Error ? queryError.message : "Erro a abrir a ficha.");
     }
-
-    void loadPlayer();
-  }, [params.id]);
+  }, [activeSeasonQuery.error, matchesQuery.error, playerQuery.error, playersQuery.error]);
 
   const playerMatches = useMemo(
     () => matches.filter((match) => matchHasPlayer(match, params.id)),
@@ -66,7 +53,7 @@ export default function PlayerPage() {
         Voltar ao ranking
       </Link>
 
-      {loading ? <div className="emptyState">A imprimir a carta...</div> : null}
+      {loading ? <PlayerProfileSkeleton /> : null}
       {error ? <div className="notice">{error}</div> : null}
 
       {!loading && player ? (
@@ -188,6 +175,52 @@ export default function PlayerPage() {
         </section>
       ) : null}
     </main>
+  );
+}
+
+function PlayerProfileSkeleton() {
+  return (
+    <section className="playerDetailGrid">
+      <article className="fifaCard skeletonFifaCard">
+        <div className="cardTop">
+          <div>
+            <SkeletonBlock className="skeletonLine tiny" />
+            <SkeletonBlock className="skeletonLine short" />
+          </div>
+          <div>
+            <SkeletonBlock className="skeletonLine short" />
+            <SkeletonBlock className="skeletonLine tiny" />
+          </div>
+        </div>
+        <div className="cardPortrait">
+          <SkeletonBlock className="skeletonPortrait" />
+        </div>
+        <div className="cardIdentity">
+          <SkeletonBlock className="skeletonLine long" />
+          <SkeletonBlock className="skeletonLine medium" />
+        </div>
+        <div className="cardStats skeletonStats">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <SkeletonBlock className="skeletonLine short" key={index} />
+          ))}
+        </div>
+      </article>
+
+      <section className="detailPanel">
+        <SkeletonBlock className="skeletonLine short" />
+        <SkeletonBlock className="skeletonLine long" />
+        <div className="detailMetrics">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div className="miniStat" key={index}>
+              <SkeletonBlock className="skeletonIcon" />
+              <SkeletonBlock className="skeletonLine short" />
+              <SkeletonBlock className="skeletonLine medium" />
+            </div>
+          ))}
+        </div>
+        <ListSkeleton rows={3} />
+      </section>
+    </section>
   );
 }
 

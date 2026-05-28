@@ -2,46 +2,37 @@
 
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import {
-  deleteMatch,
-  getActiveSeason,
-  getMatches,
-  getPlayers,
-  getSeasons,
-  type Match,
-  type Player,
-  type Season
-} from "@/lib/padel-data";
+import { useEffect, useState } from "react";
+import { GameCardSkeletons } from "@/app/components/LoadingSkeleton";
+import { useActiveSeason, useDeleteMatch, useMatches, usePlayers, useSeasons } from "@/lib/padel-queries";
+import type { Match } from "@/lib/padel-data";
 import { setsLabel } from "@/lib/match-utils";
 
 export default function MatchesPage() {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null);
-  const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  const loadData = useCallback(async (seasonId?: string) => {
-    const loadedSeason = await getActiveSeason();
-    const [loadedPlayers, loadedSeasons] = await Promise.all([
-      getPlayers(),
-      getSeasons()
-    ]);
-    const nextSeasonId = seasonId || loadedSeason?.id || loadedSeasons[0]?.id || "";
-    const loadedMatches = await getMatches(nextSeasonId);
-    setPlayers(loadedPlayers);
-    setMatches(loadedMatches);
-    setActiveSeason(loadedSeason);
-    setSeasons(loadedSeasons);
-    setSelectedSeasonId(nextSeasonId);
-  }, []);
+  const activeSeasonQuery = useActiveSeason();
+  const seasonsQuery = useSeasons();
+  const playersQuery = usePlayers();
+  const activeSeason = activeSeasonQuery.data ?? null;
+  const seasons = seasonsQuery.data ?? [];
+  const nextSeasonId = selectedSeasonId || activeSeason?.id || seasons[0]?.id || "";
+  const matchesQuery = useMatches(nextSeasonId || undefined, Boolean(nextSeasonId));
+  const deleteMatchMutation = useDeleteMatch();
+  const players = playersQuery.data ?? [];
+  const matches = matchesQuery.data ?? [];
+  const loading =
+    playersQuery.isLoading ||
+    seasonsQuery.isLoading ||
+    activeSeasonQuery.isLoading ||
+    matchesQuery.isLoading;
+  const saving = deleteMatchMutation.isPending;
 
   useEffect(() => {
-    void loadData();
-  }, [loadData]);
+    if (!selectedSeasonId && nextSeasonId) {
+      setSelectedSeasonId(nextSeasonId);
+    }
+  }, [nextSeasonId, selectedSeasonId]);
 
   const playerName = (id: string) =>
     players.find((player) => player.id === id)?.name ?? "Jogador";
@@ -50,17 +41,10 @@ export default function MatchesPage() {
     if (saving || !window.confirm("Apagar este jogo e corrigir o ranking?")) return;
 
     try {
-      setSaving(true);
       setError("");
-      await deleteMatch(match.id);
-      setMatches((current) => current.filter((item) => item.id !== match.id));
-      const loadedPlayers = await getPlayers();
-      setPlayers(loadedPlayers);
+      await deleteMatchMutation.mutateAsync(match.id);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Erro a apagar jogo.");
-      await loadData();
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -83,7 +67,7 @@ export default function MatchesPage() {
               Época
               <select
                 value={selectedSeasonId}
-                onChange={(event) => void loadData(event.target.value)}
+                onChange={(event) => setSelectedSeasonId(event.target.value)}
               >
                 {seasons.map((season) => (
                   <option key={season.id} value={season.id}>
@@ -95,45 +79,49 @@ export default function MatchesPage() {
           </div>
         ) : null}
 
-        <div className="gameCards">
-          {matches.map((match) => (
-            <article className="gameCard" key={match.id}>
-              <div className="gameCardTop">
-                <time>{new Date(match.playedAt).toLocaleDateString("pt-PT")}</time>
-                <button
-                  className="dangerIconButton"
-                  disabled={saving}
-                  onClick={() => void removeMatch(match)}
-                  title="Apagar jogo"
-                  type="button"
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </button>
-              </div>
-
-              <Link className="gameCardMain" href={`/jogos/${match.id}`}>
-                <div className="gameTeam">
-                  <span>Equipa A</span>
-                  <strong>{playerName(match.teamA[0])} / {playerName(match.teamA[1])}</strong>
+        {loading ? (
+          <GameCardSkeletons />
+        ) : (
+          <div className="gameCards">
+            {matches.map((match) => (
+              <article className="gameCard" key={match.id}>
+                <div className="gameCardTop">
+                  <time>{new Date(match.playedAt).toLocaleDateString("pt-PT")}</time>
+                  <button
+                    className="dangerIconButton"
+                    disabled={saving}
+                    onClick={() => void removeMatch(match)}
+                    title="Apagar jogo"
+                    type="button"
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                  </button>
                 </div>
 
-                <div className="gameScoreBlock">
-                  <strong>{match.scoreA} - {match.scoreB}</strong>
-                  <span>{setsLabel(match.sets)}</span>
-                </div>
+                <Link className="gameCardMain" href={`/jogos/${match.id}`}>
+                  <div className="gameTeam">
+                    <span>Equipa A</span>
+                    <strong>{playerName(match.teamA[0])} / {playerName(match.teamA[1])}</strong>
+                  </div>
 
-                <div className="gameTeam">
-                  <span>Equipa B</span>
-                  <strong>{playerName(match.teamB[0])} / {playerName(match.teamB[1])}</strong>
-                </div>
-              </Link>
-            </article>
-          ))}
+                  <div className="gameScoreBlock">
+                    <strong>{match.scoreA} - {match.scoreB}</strong>
+                    <span>{setsLabel(match.sets)}</span>
+                  </div>
 
-          {matches.length === 0 ? (
-            <div className="emptyState">Ainda não há jogos registados.</div>
-          ) : null}
-        </div>
+                  <div className="gameTeam">
+                    <span>Equipa B</span>
+                    <strong>{playerName(match.teamB[0])} / {playerName(match.teamB[1])}</strong>
+                  </div>
+                </Link>
+              </article>
+            ))}
+
+            {matches.length === 0 ? (
+              <div className="emptyState">Ainda não há jogos registados.</div>
+            ) : null}
+          </div>
+        )}
       </section>
     </main>
   );

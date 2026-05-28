@@ -4,46 +4,62 @@ import { Info, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { ListSkeleton } from "@/app/components/LoadingSkeleton";
 import {
-  createPlayer,
-  deleteSeason,
-  getActiveSeason,
-  getPlayers,
-  getSeasons,
-  getSeasonStandings,
-  type Player,
-  type Season
-} from "@/lib/padel-data";
+  useActiveSeason,
+  useCreatePlayer,
+  useDeleteSeason,
+  usePlayers,
+  useSeasons,
+  useSeasonStandings
+} from "@/lib/padel-queries";
+import type { Player } from "@/lib/padel-data";
 
 export default function PlayersPage() {
-  const [players, setPlayers] = useState<Player[]>([]);
   const [newPlayer, setNewPlayer] = useState("");
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null);
-  const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [seasonSaving, setSeasonSaving] = useState(false);
+  const [viewedSeasonId, setViewedSeasonId] = useState("");
   const [showAlgorithm, setShowAlgorithm] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const playersQuery = usePlayers();
+  const activeSeasonQuery = useActiveSeason();
+  const seasonsQuery = useSeasons();
+  const createPlayerMutation = useCreatePlayer();
+  const deleteSeasonMutation = useDeleteSeason();
+  const activeSeason = activeSeasonQuery.data ?? null;
+  const seasons = seasonsQuery.data ?? [];
+  const standingsQuery = useSeasonStandings(
+    viewedSeasonId,
+    Boolean(viewedSeasonId && viewedSeasonId !== activeSeason?.id)
+  );
+  const players: Player[] =
+    viewedSeasonId && viewedSeasonId !== activeSeason?.id
+      ? standingsQuery.data ?? []
+      : playersQuery.data ?? [];
+  const loading =
+    playersQuery.isLoading ||
+    activeSeasonQuery.isLoading ||
+    seasonsQuery.isLoading ||
+    standingsQuery.isLoading;
+  const saving = createPlayerMutation.isPending;
+  const seasonSaving = deleteSeasonMutation.isPending || standingsQuery.isFetching;
 
   useEffect(() => {
-    async function loadData() {
-      const [loadedPlayers, loadedSeason, loadedSeasons] = await Promise.all([
-        getPlayers(),
-        getActiveSeason(),
-        getSeasons()
-      ]);
-      setPlayers(loadedPlayers);
-      setActiveSeason(loadedSeason);
-      setSeasons(loadedSeasons);
-      setSelectedSeasonId(loadedSeason?.id ?? loadedSeasons[0]?.id ?? "");
+    const nextSeasonId = activeSeason?.id ?? seasons[0]?.id ?? "";
+    if (!selectedSeasonId && nextSeasonId) {
+      setSelectedSeasonId(nextSeasonId);
+      setViewedSeasonId(nextSeasonId);
     }
+  }, [activeSeason?.id, seasons, selectedSeasonId]);
 
-    void loadData().catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Nao consegui carregar a malta.");
-    });
-  }, []);
+  useEffect(() => {
+    const queryError =
+      playersQuery.error ?? activeSeasonQuery.error ?? seasonsQuery.error ?? standingsQuery.error;
+    if (queryError) {
+      setError(queryError instanceof Error ? queryError.message : "Nao consegui carregar a malta.");
+    }
+  }, [activeSeasonQuery.error, playersQuery.error, seasonsQuery.error, standingsQuery.error]);
 
   const rankedPlayers = useMemo(
     () => [...players].sort((a, b) => b.rating - a.rating),
@@ -56,16 +72,12 @@ export default function PlayersPage() {
     if (!name) return;
 
     try {
-      setSaving(true);
       setError("");
-      const player = await createPlayer(name);
-      setPlayers((current) => [...current, player]);
+      const player = await createPlayerMutation.mutateAsync(name);
       setNewPlayer("");
       setSuccess(`${player.name} entrou na lista.`);
     } catch (addError) {
       setError(addError instanceof Error ? addError.message : "Nao consegui juntar o jogador.");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -74,18 +86,12 @@ export default function PlayersPage() {
     if (!seasonId) return;
 
     try {
-      setSeasonSaving(true);
       setError("");
       const selectedSeason = seasons.find((season) => season.id === seasonId);
-      const standings = seasonId === activeSeason?.id
-        ? await getPlayers()
-        : await getSeasonStandings(seasonId);
-      setPlayers(standings);
+      setViewedSeasonId(seasonId);
       setSuccess(selectedSeason ? `A ver ranking de ${selectedSeason.name}.` : "");
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : "Nao consegui abrir essa epoca.");
-    } finally {
-      setSeasonSaving(false);
     }
   };
 
@@ -97,23 +103,14 @@ export default function PlayersPage() {
     if (!window.confirm(`Apagar ${season.name}? Os jogos ficam sem época.`)) return;
 
     try {
-      setSeasonSaving(true);
       setError("");
-      await deleteSeason(seasonId);
-      const [loadedPlayers, loadedSeason, loadedSeasons] = await Promise.all([
-        getPlayers(),
-        getActiveSeason(),
-        getSeasons()
-      ]);
-      setPlayers(loadedPlayers);
-      setActiveSeason(loadedSeason);
-      setSeasons(loadedSeasons);
-      setSelectedSeasonId(loadedSeason?.id ?? loadedSeasons[0]?.id ?? "");
+      await deleteSeasonMutation.mutateAsync(seasonId);
+      const nextSeasonId = activeSeason?.id ?? seasons.find((item) => item.id !== seasonId)?.id ?? "";
+      setSelectedSeasonId(nextSeasonId);
+      setViewedSeasonId(nextSeasonId);
       setSuccess(`${season.name} foi apagada.`);
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Nao consegui apagar a epoca.");
-    } finally {
-      setSeasonSaving(false);
     }
   };
 
@@ -203,21 +200,25 @@ export default function PlayersPage() {
           </button>
         </form>
 
-        <div className="playerList">
-          {rankedPlayers.map((player, index) => (
-            <Link className="playerRow playerLink" href={`/jogadores/${player.id}`} key={player.id}>
-              <div className="rank">{index + 1}</div>
-              <div>
-                <strong>{player.name}</strong>
-                <span>
-                  {player.matches} jogos · {player.wins} wins
-                  {player.inactivityPenalty > 0 ? ` · -${player.inactivityPenalty} pausa` : ""}
-                </span>
-              </div>
-              <div className="rating">{player.rating}</div>
-            </Link>
-          ))}
-        </div>
+        {loading ? (
+          <ListSkeleton rows={6} />
+        ) : (
+          <div className="playerList">
+            {rankedPlayers.map((player, index) => (
+              <Link className="playerRow playerLink" href={`/jogadores/${player.id}`} key={player.id}>
+                <div className="rank">{index + 1}</div>
+                <div>
+                  <strong>{player.name}</strong>
+                  <span>
+                    {player.matches} jogos · {player.wins} wins
+                    {player.inactivityPenalty > 0 ? ` · -${player.inactivityPenalty} pausa` : ""}
+                  </span>
+                </div>
+                <div className="rating">{player.rating}</div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

@@ -6,43 +6,28 @@ import { useParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  getMatch,
-  getPlayers,
-  deleteMatch,
-  type Match,
-  type Player
-} from "@/lib/padel-data";
+import { SkeletonBlock } from "@/app/components/LoadingSkeleton";
+import { useDeleteMatch, useMatch, usePlayers } from "@/lib/padel-queries";
+import type { Match, Player } from "@/lib/padel-data";
 
 export default function MatchPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [match, setMatch] = useState<Match | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  const matchQuery = useMatch(params.id);
+  const playersQuery = usePlayers();
+  const deleteMatchMutation = useDeleteMatch();
+  const match = matchQuery.data ?? null;
+  const players = playersQuery.data ?? [];
+  const loading = matchQuery.isLoading || playersQuery.isLoading;
+  const deleting = deleteMatchMutation.isPending;
 
   useEffect(() => {
-    async function loadMatch() {
-      try {
-        setLoading(true);
-        setError("");
-        const [loadedMatch, loadedPlayers] = await Promise.all([
-          getMatch(params.id),
-          getPlayers()
-        ]);
-        setMatch(loadedMatch);
-        setPlayers(loadedPlayers);
-      } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : "Erro a abrir o jogo.");
-      } finally {
-        setLoading(false);
-      }
+    const queryError = matchQuery.error ?? playersQuery.error;
+    if (queryError) {
+      setError(queryError instanceof Error ? queryError.message : "Erro a abrir o jogo.");
     }
-
-    void loadMatch();
-  }, [params.id]);
+  }, [matchQuery.error, playersQuery.error]);
 
   const winner = useMemo(() => {
     if (!match) return "";
@@ -55,14 +40,11 @@ export default function MatchPage() {
     if (!confirmed) return;
 
     try {
-      setDeleting(true);
       setError("");
-      await deleteMatch(match.id);
+      await deleteMatchMutation.mutateAsync(match.id);
       router.push("/jogos");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Erro a apagar o jogo.");
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -73,7 +55,7 @@ export default function MatchPage() {
         Voltar aos jogos
       </Link>
 
-      {loading ? <div className="emptyState">A ir buscar o resultado...</div> : null}
+      {loading ? <MatchDetailSkeleton /> : null}
       {error ? <div className="notice">{error}</div> : null}
 
       {!loading && match ? (
@@ -125,6 +107,49 @@ export default function MatchPage() {
         </section>
       ) : null}
     </main>
+  );
+}
+
+function MatchDetailSkeleton() {
+  return (
+    <section className="matchDetailStack">
+      <section className="padelCourtWrap">
+        <div className="courtHeader">
+          <div>
+            <SkeletonBlock className="skeletonLine short" />
+            <SkeletonBlock className="skeletonLine medium skeletonTitle" />
+          </div>
+          <div>
+            <SkeletonBlock className="skeletonLine short" />
+            <SkeletonBlock className="skeletonLine medium" />
+            <SkeletonBlock className="skeletonButton" />
+          </div>
+        </div>
+        <div className="padelCourt skeletonCourt">
+          <SkeletonBlock className="skeletonCourtPlayer courtPlayer a left" />
+          <SkeletonBlock className="skeletonCourtPlayer courtPlayer a right" />
+          <SkeletonBlock className="skeletonCourtPlayer courtPlayer b left" />
+          <SkeletonBlock className="skeletonCourtPlayer courtPlayer b right" />
+          <SkeletonBlock className="skeletonCourtScore courtScore" />
+        </div>
+      </section>
+
+      <div className="detailPanel">
+        <div className="detailMetrics">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div className="miniStat" key={index}>
+              <SkeletonBlock className="skeletonIcon" />
+              <SkeletonBlock className="skeletonLine short" />
+              <SkeletonBlock className="skeletonLine medium" />
+            </div>
+          ))}
+        </div>
+        <div className="teamsDetail">
+          <SkeletonBlock className="skeletonPanel" />
+          <SkeletonBlock className="skeletonPanel" />
+        </div>
+      </div>
+    </section>
   );
 }
 

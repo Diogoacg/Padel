@@ -3,36 +3,20 @@
 import { Activity, Flame, Info, Medal, ShieldAlert, Swords, Trophy, Users } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
-import {
-  getActiveSeason,
-  getMatches,
-  getPlayers,
-  type Match,
-  type Player,
-  type Season
-} from "@/lib/padel-data";
+import { useMemo, useState } from "react";
+import { CardSkeletonGrid, ListSkeleton, MetricSkeletons } from "@/app/components/LoadingSkeleton";
+import { useActiveSeason, useMatches, usePlayers } from "@/lib/padel-queries";
+import type { Match, Player } from "@/lib/padel-data";
 
 export default function Home() {
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [activeSeason, setActiveSeason] = useState<Season | null>(null);
   const [showAlgorithm, setShowAlgorithm] = useState(false);
-
-  useEffect(() => {
-    async function loadData() {
-      const loadedSeason = await getActiveSeason();
-      const [loadedPlayers, loadedMatches] = await Promise.all([
-        getPlayers(),
-        getMatches(loadedSeason?.id)
-      ]);
-      setPlayers(loadedPlayers);
-      setMatches(loadedMatches);
-      setActiveSeason(loadedSeason);
-    }
-
-    void loadData();
-  }, []);
+  const activeSeasonQuery = useActiveSeason();
+  const playersQuery = usePlayers();
+  const matchesQuery = useMatches(activeSeasonQuery.data?.id, !activeSeasonQuery.isLoading);
+  const players = playersQuery.data ?? [];
+  const matches = matchesQuery.data ?? [];
+  const activeSeason = activeSeasonQuery.data ?? null;
+  const loading = playersQuery.isLoading || activeSeasonQuery.isLoading || matchesQuery.isLoading;
 
   const rankedPlayers = useMemo(
     () => [...players].sort((a, b) => b.rating - a.rating),
@@ -72,12 +56,16 @@ export default function Home() {
         <Link href="/jogos">Ver jogos</Link>
       </section>
 
-      <section className="metrics" aria-label="Métricas principais">
-        <Metric icon={<Users />} label="Malta" value={players.length} />
-        <Metric icon={<Swords />} label="Jogos" value={matches.length} />
-        <Metric icon={<Activity />} label="Rating médio" value={averagePlayerRating} />
-        <Metric icon={<Medal />} label="Ferrugem" value={inactivePlayers} />
-      </section>
+      {loading ? (
+        <MetricSkeletons />
+      ) : (
+        <section className="metrics" aria-label="Métricas principais">
+          <Metric icon={<Users />} label="Malta" value={players.length} />
+          <Metric icon={<Swords />} label="Jogos" value={matches.length} />
+          <Metric icon={<Activity />} label="Rating médio" value={averagePlayerRating} />
+          <Metric icon={<Medal />} label="Ferrugem" value={inactivePlayers} />
+        </section>
+      )}
 
       <section className="panel seasonDashboard">
         <div className="panelHeader">
@@ -88,32 +76,36 @@ export default function Home() {
           <Link className="textButton" href="/jogos">Arquivo</Link>
         </div>
 
-        <div className="dashboardGrid">
-          <DashboardCard
-            icon={<Trophy />}
-            label="Campeão agora"
-            title={topPlayer?.name ?? "Ainda ninguém"}
-            value={topPlayer ? `${topPlayer.rating} RAT` : "-"}
-          />
-          <DashboardCard
-            icon={<Users />}
-            label="Dupla quente"
-            title={seasonDashboard.bestDuo?.label ?? "Sem dupla"}
-            value={seasonDashboard.bestDuo ? `${seasonDashboard.bestDuo.wins}/${seasonDashboard.bestDuo.matches}` : "-"}
-          />
-          <DashboardCard
-            icon={<ShieldAlert />}
-            label="Maior surpresa"
-            title={seasonDashboard.biggestUpset?.label ?? "Sem upset"}
-            value={seasonDashboard.biggestUpset ? `+${seasonDashboard.biggestUpset.gap}` : "-"}
-          />
-          <DashboardCard
-            icon={<Flame />}
-            label="Jogo de nervos"
-            title={seasonDashboard.closestMatch?.label ?? "Ainda sem drama"}
-            value={seasonDashboard.closestMatch?.sets ?? "-"}
-          />
-        </div>
+        {loading ? (
+          <CardSkeletonGrid />
+        ) : (
+          <div className="dashboardGrid">
+            <DashboardCard
+              icon={<Trophy />}
+              label="Campeão agora"
+              title={topPlayer?.name ?? "Ainda ninguém"}
+              value={topPlayer ? `${topPlayer.rating} RAT` : "-"}
+            />
+            <DashboardCard
+              icon={<Users />}
+              label="Dupla quente"
+              title={seasonDashboard.bestDuo?.label ?? "Sem dupla"}
+              value={seasonDashboard.bestDuo ? `${seasonDashboard.bestDuo.wins}/${seasonDashboard.bestDuo.matches}` : "-"}
+            />
+            <DashboardCard
+              icon={<ShieldAlert />}
+              label="Maior surpresa"
+              title={seasonDashboard.biggestUpset?.label ?? "Sem upset"}
+              value={seasonDashboard.biggestUpset ? `+${seasonDashboard.biggestUpset.gap}` : "-"}
+            />
+            <DashboardCard
+              icon={<Flame />}
+              label="Jogo de nervos"
+              title={seasonDashboard.closestMatch?.label ?? "Ainda sem drama"}
+              value={seasonDashboard.closestMatch?.sets ?? "-"}
+            />
+          </div>
+        )}
       </section>
 
       <section className="panel">
@@ -139,21 +131,25 @@ export default function Home() {
 
         {showAlgorithm ? <AlgorithmNote /> : null}
 
-        <div className="playerList">
-          {rankedPlayers.slice(0, 5).map((player, index) => (
-            <Link className="playerRow playerLink" href={`/jogadores/${player.id}`} key={player.id}>
-              <div className="rank">{index + 1}</div>
-              <div>
-                <strong>{player.name}</strong>
-                <span>
-                  {player.matches} jogos · {player.wins} wins
-                  {player.inactivityPenalty > 0 ? ` · -${player.inactivityPenalty} pausa` : ""}
-                </span>
-              </div>
-              <div className="rating">{player.rating}</div>
-            </Link>
-          ))}
-        </div>
+        {loading ? (
+          <ListSkeleton rows={5} />
+        ) : (
+          <div className="playerList">
+            {rankedPlayers.slice(0, 5).map((player, index) => (
+              <Link className="playerRow playerLink" href={`/jogadores/${player.id}`} key={player.id}>
+                <div className="rank">{index + 1}</div>
+                <div>
+                  <strong>{player.name}</strong>
+                  <span>
+                    {player.matches} jogos · {player.wins} wins
+                    {player.inactivityPenalty > 0 ? ` · -${player.inactivityPenalty} pausa` : ""}
+                  </span>
+                </div>
+                <div className="rating">{player.rating}</div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

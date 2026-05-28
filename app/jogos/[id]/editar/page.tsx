@@ -4,13 +4,9 @@ import { AlertCircle, ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
-import {
-  getMatch,
-  getPlayers,
-  updateMatch,
-  type Player
-} from "@/lib/padel-data";
+import { useEffect, useState } from "react";
+import { useMatch, usePlayers, useUpdateMatch } from "@/lib/padel-queries";
+import type { Player } from "@/lib/padel-data";
 import {
   averageRating,
   calculateMatchScore,
@@ -30,37 +26,34 @@ type MatchForm = {
 export default function EditMatchPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [players, setPlayers] = useState<Player[]>([]);
   const [form, setForm] = useState<MatchForm | null>(null);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
-  const loadData = useCallback(async () => {
-    const [loadedMatch, loadedPlayers] = await Promise.all([
-      getMatch(params.id),
-      getPlayers()
-    ]);
-
-    if (!loadedMatch) {
-      throw new Error("Jogo nao encontrado.");
-    }
-
-    setPlayers(loadedPlayers);
-    setForm({
-      playedAt: loadedMatch.playedAt,
-      a1: loadedMatch.teamA[0],
-      a2: loadedMatch.teamA[1],
-      b1: loadedMatch.teamB[0],
-      b2: loadedMatch.teamB[1],
-      sets: loadedMatch.sets
-    });
-  }, [params.id]);
+  const matchQuery = useMatch(params.id);
+  const playersQuery = usePlayers();
+  const updateMatchMutation = useUpdateMatch();
+  const players = playersQuery.data ?? [];
+  const saving = updateMatchMutation.isPending;
 
   useEffect(() => {
-    void loadData().catch((loadError) => {
-      setError(loadError instanceof Error ? loadError.message : "Erro a abrir edicao.");
-    });
-  }, [loadData]);
+    const loadedMatch = matchQuery.data;
+    if (loadedMatch && !form) {
+      setForm({
+        playedAt: loadedMatch.playedAt,
+        a1: loadedMatch.teamA[0],
+        a2: loadedMatch.teamA[1],
+        b1: loadedMatch.teamB[0],
+        b2: loadedMatch.teamB[1],
+        sets: loadedMatch.sets
+      });
+    }
+  }, [form, matchQuery.data]);
+
+  useEffect(() => {
+    const queryError = matchQuery.error ?? playersQuery.error;
+    if (queryError) {
+      setError(queryError instanceof Error ? queryError.message : "Erro a abrir edicao.");
+    }
+  }, [matchQuery.error, playersQuery.error]);
 
   const saveMatch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -91,22 +84,22 @@ export default function EditMatchPage() {
     );
 
     try {
-      setSaving(true);
       setError("");
-      const updatedMatch = await updateMatch(params.id, {
-        playedAt: form.playedAt,
-        teamA,
-        teamB,
-        scoreA: matchScore.scoreA,
-        scoreB: matchScore.scoreB,
-        sets: form.sets,
-        ratingDelta: delta
+      const updatedMatch = await updateMatchMutation.mutateAsync({
+        id: params.id,
+        match: {
+          playedAt: form.playedAt,
+          teamA,
+          teamB,
+          scoreA: matchScore.scoreA,
+          scoreB: matchScore.scoreB,
+          sets: form.sets,
+          ratingDelta: delta
+        }
       });
       router.push(`/jogos/${updatedMatch.id}`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Erro a corrigir jogo.");
-    } finally {
-      setSaving(false);
     }
   };
 

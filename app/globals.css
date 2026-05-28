@@ -80,6 +80,167 @@ a {
   text-decoration: none;
 }
 
+.skeleton {
+  animation: skeletonShimmer 1.35s ease-in-out infinite;
+  background: linear-gradient(90deg, #eadbc3 0%, #fff8eb 45%, #eadbc3 90%);
+  background-size: 220% 100%;
+  border-radius: 8px;
+  min-height: 12px;
+}
+
+.skeletonIcon {
+  height: 28px;
+  width: 28px;
+}
+
+.skeletonAvatar,
+.skeletonPortrait {
+  border-radius: 999px;
+}
+
+.skeletonAvatar {
+  height: 34px;
+  width: 34px;
+}
+
+.skeletonPortrait {
+  height: 128px;
+  margin: 0 auto;
+  width: 128px;
+}
+
+.skeletonLine {
+  height: 12px;
+  width: 100%;
+}
+
+.skeletonLine.tiny {
+  height: 18px;
+  width: 44px;
+}
+
+.skeletonLine.short {
+  width: 82px;
+}
+
+.skeletonLine.medium {
+  width: 58%;
+}
+
+.skeletonLine.long {
+  width: 82%;
+}
+
+.skeletonTitle {
+  height: 46px;
+  width: 110px;
+}
+
+.skeletonPanel {
+  min-height: 58px;
+}
+
+.skeletonScore {
+  min-height: 74px;
+  min-width: 86px;
+}
+
+.skeletonButton,
+.skeletonSelect {
+  min-height: 42px;
+}
+
+.skeletonButton {
+  max-width: 148px;
+}
+
+.skeletonMetric,
+.skeletonCard,
+.skeletonRow,
+.skeletonTeamSelect {
+  pointer-events: none;
+}
+
+.skeletonMetric::after {
+  background: rgba(216, 247, 80, 0.5);
+}
+
+.skeletonCard {
+  min-height: 132px;
+}
+
+.skeletonCard .skeletonLine,
+.miniStat .skeletonLine,
+.skeletonTeamSelect .skeletonLine {
+  margin-top: 6px;
+}
+
+.skeletonRow > div:not(.skeleton) {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  width: 100%;
+}
+
+.skeletonFifaCard .cardIdentity {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.skeletonStats {
+  gap: 12px;
+}
+
+.skeletonCourt {
+  overflow: hidden;
+}
+
+.skeletonCourtPlayer,
+.skeletonCourtScore {
+  border: 0;
+  box-shadow: none;
+  min-height: auto;
+  opacity: 0.95;
+}
+
+.skeletonCourtPlayer {
+  height: 60px;
+  width: min(76px, 26%);
+}
+
+.skeletonCourtScore {
+  height: 54px;
+  width: 82px;
+}
+
+.skeletonTeamSelect {
+  display: grid;
+  gap: 10px;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    background-position: 120% 0;
+    opacity: 0.7;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    background-position: -120% 0;
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
 .shell {
   margin: 0 auto;
   max-width: 1180px;
