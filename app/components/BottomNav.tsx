@@ -1,12 +1,13 @@
 "use client";
 
-import { Home, List, PlusCircle, Users } from "lucide-react";
+import { Home, List, PlusCircle, Shuffle, Users } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/", label: "Início", icon: Home },
   { href: "/registar", label: "Registar", icon: PlusCircle },
+  { href: "/sorteio", label: "Sorteio", icon: Shuffle },
   { href: "/jogos", label: "Jogos", icon: List },
   { href: "/jogadores", label: "Malta", icon: Users }
 ];

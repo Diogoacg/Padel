@@ -33,7 +33,9 @@ const emptyForm = (): MatchForm => ({
 
 export default function RegisterPage() {
   const [form, setForm] = useState<MatchForm>(emptyForm);
+  const [appliedQueryTeams, setAppliedQueryTeams] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const playersQuery = usePlayers();
   const createMatchMutation = useCreateMatch();
   const players = playersQuery.data ?? [];
@@ -42,15 +44,26 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (players.length > 0) {
+      const queryTeams = readTeamQuery();
+      const queryTeamsValid =
+        !appliedQueryTeams &&
+        queryTeams.every(Boolean) &&
+        new Set(queryTeams).size === 4 &&
+        queryTeams.every((id) => players.some((player) => player.id === id));
+
       setForm((current) => ({
         ...current,
-        a1: current.a1 || players[0]?.id || "",
-        a2: current.a2 || players[1]?.id || "",
-        b1: current.b1 || players[2]?.id || "",
-        b2: current.b2 || players[3]?.id || ""
+        a1: queryTeamsValid ? queryTeams[0] : current.a1 || players[0]?.id || "",
+        a2: queryTeamsValid ? queryTeams[1] : current.a2 || players[1]?.id || "",
+        b1: queryTeamsValid ? queryTeams[2] : current.b1 || players[2]?.id || "",
+        b2: queryTeamsValid ? queryTeams[3] : current.b2 || players[3]?.id || ""
       }));
+
+      if (queryTeamsValid) {
+        setAppliedQueryTeams(true);
+      }
     }
-  }, [players]);
+  }, [appliedQueryTeams, players]);
 
   useEffect(() => {
     if (playersQuery.error) {
@@ -63,16 +76,24 @@ export default function RegisterPage() {
     const ids = [form.a1, form.a2, form.b1, form.b2];
 
     if (players.length < 4) {
+      setSuccess("");
       setError("Ainda faltam jogadores. Para um 2v2 precisamos de 4 nomes.");
       return;
     }
+    if (form.playedAt > new Date().toISOString().slice(0, 10)) {
+      setSuccess("");
+      setError("Calma campeão, esse jogo ainda está no futuro.");
+      return;
+    }
     if (new Set(ids).size !== 4) {
+      setSuccess("");
       setError("Não vale repetir jogador. Escolhe 4 pessoas diferentes.");
       return;
     }
 
     const matchScore = calculateMatchScore(form.sets);
     if (!matchScore.valid) {
+      setSuccess("");
       setError(matchScore.message);
       return;
     }
@@ -92,6 +113,7 @@ export default function RegisterPage() {
 
     try {
       setError("");
+      setSuccess("");
       await createMatchMutation.mutateAsync({
         playedAt: form.playedAt,
         teamA,
@@ -102,7 +124,9 @@ export default function RegisterPage() {
         ratingDelta: delta
       });
       setForm((current) => ({ ...emptyForm(), a1: current.a1, a2: current.a2, b1: current.b1, b2: current.b2 }));
+      setSuccess("Resultado guardado. Ranking atualizado sem dramas.");
     } catch (saveError) {
+      setSuccess("");
       setError(saveError instanceof Error ? saveError.message : "Erro a guardar jogo.");
     }
   };
@@ -120,6 +144,7 @@ export default function RegisterPage() {
           {error}
         </div>
       ) : null}
+      {success ? <div className="notice successNotice" role="status">{success}</div> : null}
 
       <section className="panel">
         <form className="matchForm" onSubmit={registerMatch}>
@@ -199,6 +224,18 @@ export default function RegisterPage() {
       </section>
     </main>
   );
+}
+
+function readTeamQuery(): [string, string, string, string] {
+  if (typeof window === "undefined") return ["", "", "", ""];
+
+  const params = new URLSearchParams(window.location.search);
+  return [
+    params.get("a1") ?? "",
+    params.get("a2") ?? "",
+    params.get("b1") ?? "",
+    params.get("b2") ?? ""
+  ];
 }
 
 function TeamSelectSkeleton() {

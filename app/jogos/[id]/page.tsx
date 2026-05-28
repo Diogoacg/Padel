@@ -14,6 +14,7 @@ export default function MatchPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const matchQuery = useMatch(params.id);
   const playersQuery = usePlayers();
   const deleteMatchMutation = useDeleteMatch();
@@ -29,8 +30,17 @@ export default function MatchPage() {
     }
   }, [matchQuery.error, playersQuery.error]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("saved") === "result") {
+      setSuccess("Resultado guardado. O jogo ficou fechado.");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   const winner = useMemo(() => {
     if (!match) return "";
+    if (match.status === "pending") return "Por jogar";
     return match.scoreA > match.scoreB ? "Equipa A" : "Equipa B";
   }, [match]);
 
@@ -41,8 +51,9 @@ export default function MatchPage() {
 
     try {
       setError("");
+      setSuccess("");
       await deleteMatchMutation.mutateAsync(match.id);
-      router.push("/jogos");
+      router.push("/jogos?deleted=1");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Erro a apagar o jogo.");
     }
@@ -57,6 +68,7 @@ export default function MatchPage() {
 
       {loading ? <MatchDetailSkeleton /> : null}
       {error ? <div className="notice">{error}</div> : null}
+      {success ? <div className="notice successNotice" role="status">{success}</div> : null}
 
       {!loading && match ? (
         <section className="matchDetailStack">
@@ -71,7 +83,7 @@ export default function MatchPage() {
             <div className="detailActions">
               <Link className="textButton" href={`/jogos/${match.id}/editar`}>
                 <Pencil size={16} aria-hidden="true" />
-                Corrigir jogo
+                {match.status === "pending" ? "Meter resultado" : "Corrigir jogo"}
               </Link>
             </div>
 
@@ -81,8 +93,8 @@ export default function MatchPage() {
                 label="Data"
                 value={new Date(match.playedAt).toLocaleDateString("pt-PT")}
               />
-              <MiniStat icon={<Trophy />} label="Vencedor" value={winner} />
-              <MiniStat icon={<Gauge />} label="Delta" value={`+${match.ratingDelta}`} />
+              <MiniStat icon={<Trophy />} label="Estado" value={winner} />
+              <MiniStat icon={<Gauge />} label="Delta" value={match.status === "pending" ? "-" : `+${match.ratingDelta}`} />
               <MiniStat icon={<Swords />} label="Formato" value="2v2" />
             </div>
 
@@ -92,16 +104,23 @@ export default function MatchPage() {
             </div>
 
             <div className="setsDetail">
-              {match.sets
-                .filter((set, index) => index < 2 || set.a + set.b > 0)
-                .map((set, index) => (
-                  <article key={index}>
-                    <span>Set {index + 1}</span>
-                    <strong>
-                      {set.a} - {set.b}
-                    </strong>
-                  </article>
-                ))}
+              {match.status === "pending" ? (
+                <article>
+                  <span>Resultado</span>
+                  <strong>Por meter</strong>
+                </article>
+              ) : (
+                match.sets
+                  .filter((set, index) => index < 2 || set.a + set.b > 0)
+                  .map((set, index) => (
+                    <article key={index}>
+                      <span>Set {index + 1}</span>
+                      <strong>
+                        {set.a} - {set.b}
+                      </strong>
+                    </article>
+                  ))
+              )}
             </div>
           </div>
         </section>
@@ -172,12 +191,12 @@ function PadelCourt({
         <div>
           <p className="eyebrow">Campo da partida</p>
           <h1>
-            {match.scoreA} - {match.scoreB}
+            {match.status === "pending" ? "vs" : `${match.scoreA} - ${match.scoreB}`}
           </h1>
         </div>
         <div>
-          <span>{setsLabel(match.sets)}</span>
-          <strong>{winner} ganhou</strong>
+          <span>{match.status === "pending" ? "Resultado por meter" : setsLabel(match.sets)}</span>
+          <strong>{match.status === "pending" ? "Por jogar" : `${winner} ganhou`}</strong>
           <button
             className="dangerButton"
             disabled={deleting}
@@ -208,7 +227,7 @@ function PadelCourt({
         <div className="courtScore">
           <span>Sets</span>
           <strong>
-            {match.scoreA} - {match.scoreB}
+            {match.status === "pending" ? "vs" : `${match.scoreA} - ${match.scoreB}`}
           </strong>
         </div>
       </div>

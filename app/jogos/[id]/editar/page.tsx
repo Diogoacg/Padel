@@ -37,13 +37,14 @@ export default function EditMatchPage() {
   useEffect(() => {
     const loadedMatch = matchQuery.data;
     if (loadedMatch && !form) {
+      const pendingSets: MatchFormSets = [{ a: 6, b: 4 }, { a: 6, b: 4 }, { a: 0, b: 0 }];
       setForm({
         playedAt: loadedMatch.playedAt,
         a1: loadedMatch.teamA[0],
         a2: loadedMatch.teamA[1],
         b1: loadedMatch.teamB[0],
         b2: loadedMatch.teamB[1],
-        sets: loadedMatch.sets
+        sets: loadedMatch.status === "pending" ? pendingSets : loadedMatch.sets
       });
     }
   }, [form, matchQuery.data]);
@@ -60,6 +61,10 @@ export default function EditMatchPage() {
     if (!form) return;
 
     const ids = [form.a1, form.a2, form.b1, form.b2];
+    if (form.playedAt > new Date().toISOString().slice(0, 10)) {
+      setError("Ainda nao da para meter resultado de um jogo futuro.");
+      return;
+    }
     if (new Set(ids).size !== 4) {
       setError("Escolhe 4 jogadores diferentes.");
       return;
@@ -97,7 +102,7 @@ export default function EditMatchPage() {
           ratingDelta: delta
         }
       });
-      router.push(`/jogos/${updatedMatch.id}`);
+      router.push(`/jogos/${updatedMatch.id}?saved=result`);
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "Erro a corrigir jogo.");
     }
@@ -111,8 +116,8 @@ export default function EditMatchPage() {
       </Link>
 
       <section className="compactHeader">
-        <p className="eyebrow">Correção</p>
-        <h1>Editar jogo</h1>
+        <p className="eyebrow">{matchQuery.data?.status === "pending" ? "Resultado" : "Correção"}</p>
+        <h1>{matchQuery.data?.status === "pending" ? "Fechar jogo" : "Editar jogo"}</h1>
       </section>
 
       {error ? (
@@ -192,7 +197,9 @@ export default function EditMatchPage() {
 
             <button className="primary" disabled={saving || players.length < 4} type="submit">
               <Save size={16} aria-hidden="true" />
-              {saving ? "A corrigir..." : "Guardar correção"}
+              {saving
+                ? matchQuery.data?.status === "pending" ? "A fechar..." : "A corrigir..."
+                : matchQuery.data?.status === "pending" ? "Guardar resultado" : "Guardar correção"}
             </button>
           </form>
         ) : null}

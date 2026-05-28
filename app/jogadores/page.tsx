@@ -10,6 +10,7 @@ import {
   useCreatePlayer,
   useDeleteSeason,
   usePlayers,
+  usePrefetchPlayer,
   useSeasons,
   useSeasonStandings
 } from "@/lib/padel-queries";
@@ -27,6 +28,7 @@ export default function PlayersPage() {
   const seasonsQuery = useSeasons();
   const createPlayerMutation = useCreatePlayer();
   const deleteSeasonMutation = useDeleteSeason();
+  const prefetchPlayer = usePrefetchPlayer();
   const activeSeason = activeSeasonQuery.data ?? null;
   const seasons = seasonsQuery.data ?? [];
   const standingsQuery = useSeasonStandings(
@@ -205,7 +207,14 @@ export default function PlayersPage() {
         ) : (
           <div className="playerList">
             {rankedPlayers.map((player, index) => (
-              <Link className="playerRow playerLink" href={`/jogadores/${player.id}`} key={player.id}>
+              <Link
+                className="playerRow playerLink"
+                href={`/jogadores/${player.id}`}
+                key={player.id}
+                onFocus={() => void prefetchPlayer(player.id)}
+                onMouseEnter={() => void prefetchPlayer(player.id)}
+                onTouchStart={() => void prefetchPlayer(player.id)}
+              >
                 <div className="rank">{index + 1}</div>
                 <div>
                   <strong>{player.name}</strong>

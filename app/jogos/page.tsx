@@ -4,13 +4,14 @@ import { Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { GameCardSkeletons } from "@/app/components/LoadingSkeleton";
-import { useActiveSeason, useDeleteMatch, useMatches, usePlayers, useSeasons } from "@/lib/padel-queries";
+import { useActiveSeason, useDeleteMatch, useMatches, usePlayers, usePrefetchMatch, useSeasons } from "@/lib/padel-queries";
 import type { Match } from "@/lib/padel-data";
 import { setsLabel } from "@/lib/match-utils";
 
 export default function MatchesPage() {
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const activeSeasonQuery = useActiveSeason();
   const seasonsQuery = useSeasons();
   const playersQuery = usePlayers();
@@ -19,6 +20,7 @@ export default function MatchesPage() {
   const nextSeasonId = selectedSeasonId || activeSeason?.id || seasons[0]?.id || "";
   const matchesQuery = useMatches(nextSeasonId || undefined, Boolean(nextSeasonId));
   const deleteMatchMutation = useDeleteMatch();
+  const prefetchMatch = usePrefetchMatch();
   const players = playersQuery.data ?? [];
   const matches = matchesQuery.data ?? [];
   const loading =
@@ -34,6 +36,17 @@ export default function MatchesPage() {
     }
   }, [nextSeasonId, selectedSeasonId]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("created") === "pending") {
+      setSuccess("Jogo pendente criado. Quando houver resultado, toca nele e fecha a conta.");
+      window.history.replaceState(null, "", window.location.pathname);
+    } else if (params.get("deleted") === "1") {
+      setSuccess("Jogo apagado e lista atualizada.");
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
+
   const playerName = (id: string) =>
     players.find((player) => player.id === id)?.name ?? "Jogador";
 
@@ -42,7 +55,9 @@ export default function MatchesPage() {
 
     try {
       setError("");
+      setSuccess("");
       await deleteMatchMutation.mutateAsync(match.id);
+      setSuccess(match.status === "pending" ? "Jogo pendente apagado." : "Jogo apagado e ranking corrigido.");
     } catch (deleteError) {
       setError(deleteError instanceof Error ? deleteError.message : "Erro a apagar jogo.");
     }
@@ -59,6 +74,7 @@ export default function MatchesPage() {
       </section>
 
       {error ? <div className="notice" role="alert">{error}</div> : null}
+      {success ? <div className="notice successNotice" role="status">{success}</div> : null}
 
       <section className="panel">
         {seasons.length > 1 ? (
@@ -98,15 +114,21 @@ export default function MatchesPage() {
                   </button>
                 </div>
 
-                <Link className="gameCardMain" href={`/jogos/${match.id}`}>
+                <Link
+                  className="gameCardMain"
+                  href={match.status === "pending" ? `/jogos/${match.id}/editar` : `/jogos/${match.id}`}
+                  onFocus={() => void prefetchMatch(match.id)}
+                  onMouseEnter={() => void prefetchMatch(match.id)}
+                  onTouchStart={() => void prefetchMatch(match.id)}
+                >
                   <div className="gameTeam">
                     <span>Equipa A</span>
                     <strong>{playerName(match.teamA[0])} / {playerName(match.teamA[1])}</strong>
                   </div>
 
-                  <div className="gameScoreBlock">
-                    <strong>{match.scoreA} - {match.scoreB}</strong>
-                    <span>{setsLabel(match.sets)}</span>
+                  <div className={match.status === "pending" ? "gameScoreBlock pending" : "gameScoreBlock"}>
+                    <strong>{match.status === "pending" ? "vs" : `${match.scoreA} - ${match.scoreB}`}</strong>
+                    <span>{match.status === "pending" ? "Meter resultado" : setsLabel(match.sets)}</span>
                   </div>
 
                   <div className="gameTeam">

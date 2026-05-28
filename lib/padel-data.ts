@@ -1,5 +1,11 @@
 import { supabase } from "@/lib/supabase";
-import type { MatchRecord, PlayerRecord, SeasonRecord } from "@/lib/types";
+import type {
+  HomeDashboardRecord,
+  MatchRecord,
+  PlayerRatingHistoryRecord,
+  PlayerRecord,
+  SeasonRecord
+} from "@/lib/types";
 
 export type Player = {
   id: string;
@@ -14,6 +20,7 @@ export type Player = {
 export type Match = {
   id: string;
   seasonId: string | null;
+  status: "pending" | "completed";
   playedAt: string;
   teamA: [string, string];
   teamB: [string, string];
@@ -22,6 +29,8 @@ export type Match = {
   sets: [SetScore, SetScore, SetScore];
   ratingDelta: number;
 };
+
+export type CompletedMatchInput = Omit<Match, "id" | "seasonId" | "status">;
 
 export type SetScore = {
   a: number;
@@ -36,6 +45,41 @@ export type Season = {
   active: boolean;
   semesterYear: number | null;
   semesterHalf: number | null;
+};
+
+export type HomeDashboard = {
+  seasonId: string;
+  seasonName: string;
+  totalPlayers: number;
+  totalMatches: number;
+  averageRating: number;
+  inactivePlayers: number;
+  topPlayers: Player[];
+  bestDuo: {
+    label: string;
+    wins: number;
+    matches: number;
+  } | null;
+  biggestUpset: {
+    label: string;
+    gap: number;
+  } | null;
+  closestMatch: {
+    label: string;
+    sets: string;
+  } | null;
+};
+
+export type PlayerRatingHistoryPoint = {
+  matchId: string;
+  playedAt: string;
+  ratingBefore: number;
+  ratingAfter: number;
+  ratingDelta: number;
+  won: boolean;
+  teamLabel: string;
+  opponentLabel: string;
+  scoreLabel: string;
 };
 
 export type PlayerUpdate = {
@@ -58,6 +102,7 @@ export const mapPlayer = (record: PlayerRecord): Player => ({
 export const mapMatch = (record: MatchRecord): Match => ({
   id: record.id,
   seasonId: record.season_id,
+  status: record.status,
   playedAt: record.played_at,
   teamA: [record.team_a_player_1, record.team_a_player_2],
   teamB: [record.team_b_player_1, record.team_b_player_2],
@@ -81,15 +126,64 @@ export const mapSeason = (record: SeasonRecord): Season => ({
   semesterHalf: record.semester_half
 });
 
+export const mapHomeDashboard = (record: HomeDashboardRecord): HomeDashboard => ({
+  seasonId: record.season_id,
+  seasonName: record.season_name,
+  totalPlayers: record.total_players,
+  totalMatches: record.total_matches,
+  averageRating: record.average_rating,
+  inactivePlayers: record.inactive_players,
+  topPlayers: record.top_players.map((player) => ({
+    id: player.id,
+    name: player.name,
+    rating: player.rating,
+    matches: player.matches,
+    wins: player.wins,
+    inactivityPenalty: player.inactivityPenalty,
+    lastDecayAt: player.lastDecayAt
+  })),
+  bestDuo: record.best_duo_label
+    ? {
+        label: record.best_duo_label,
+        wins: record.best_duo_wins,
+        matches: record.best_duo_matches
+      }
+    : null,
+  biggestUpset: record.biggest_upset_label && record.biggest_upset_gap !== null
+    ? {
+        label: record.biggest_upset_label,
+        gap: record.biggest_upset_gap
+      }
+    : null,
+  closestMatch: record.closest_match_label && record.closest_match_sets
+    ? {
+        label: record.closest_match_label,
+        sets: record.closest_match_sets
+      }
+    : null
+});
+
+export const mapPlayerRatingHistoryPoint = (
+  record: PlayerRatingHistoryRecord
+): PlayerRatingHistoryPoint => ({
+  matchId: record.match_id,
+  playedAt: record.played_at,
+  ratingBefore: record.rating_before,
+  ratingAfter: record.rating_after,
+  ratingDelta: record.rating_delta,
+  won: record.won,
+  teamLabel: record.team_label,
+  opponentLabel: record.opponent_label,
+  scoreLabel: record.score_label
+});
+
 const matchSelect =
-  "id, season_id, played_at, team_a_player_1, team_a_player_2, team_b_player_1, team_b_player_2, score_a, score_b, set_1_a, set_1_b, set_2_a, set_2_b, set_3_a, set_3_b, rating_delta, created_at";
+  "id, season_id, status, played_at, team_a_player_1, team_a_player_2, team_b_player_1, team_b_player_2, score_a, score_b, set_1_a, set_1_b, set_2_a, set_2_b, set_3_a, set_3_b, rating_delta, created_at";
 
 const seasonSelect = "id, name, starts_at, ends_at, active, semester_year, semester_half, created_at";
 
 export async function getPlayers() {
   if (!supabase) return [];
-
-  await applyInactivityDecay();
 
   const { data, error } = await supabase
     .from("players")
@@ -99,6 +193,19 @@ export async function getPlayers() {
 
   if (error) throw new Error(error.message);
   return data.map(mapPlayer);
+}
+
+export async function getHomeDashboard(seasonId?: string | null) {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .rpc("home_dashboard", {
+      p_season_id: seasonId ?? null
+    })
+    .maybeSingle<HomeDashboardRecord>();
+
+  if (error) throw new Error(error.message);
+  return data ? mapHomeDashboard(data) : null;
 }
 
 export async function getSeasonStandings(seasonId: string) {
@@ -133,8 +240,6 @@ export async function getSeasonStandings(seasonId: string) {
 export async function getPlayer(id: string) {
   if (!supabase) return null;
 
-  await applyInactivityDecay();
-
   const { data, error } = await supabase
     .from("players")
     .select("id, name, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
@@ -143,6 +248,21 @@ export async function getPlayer(id: string) {
 
   if (error) throw new Error(error.message);
   return mapPlayer(data);
+}
+
+export async function getPlayerRatingHistory(playerId: string, seasonId?: string | null) {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .rpc("player_rating_history", {
+      p_player_id: playerId,
+      p_season_id: seasonId ?? null
+    })
+    .returns<PlayerRatingHistoryRecord[]>();
+
+  if (error) throw new Error(error.message);
+  const records = Array.isArray(data) ? data as PlayerRatingHistoryRecord[] : [];
+  return records.map(mapPlayerRatingHistoryPoint);
 }
 
 export async function getMatches(seasonId?: string | null) {
@@ -218,7 +338,7 @@ export async function createPlayer(name: string) {
   return mapPlayer(data);
 }
 
-export async function createMatch(match: Omit<Match, "id" | "seasonId">) {
+export async function createMatch(match: CompletedMatchInput) {
   if (!supabase) throw new Error("Supabase nao esta configurado.");
 
   const { data, error } = await supabase
@@ -247,7 +367,31 @@ export async function createMatch(match: Omit<Match, "id" | "seasonId">) {
   return mapMatch(data as MatchRecord);
 }
 
-export async function updateMatch(id: string, match: Omit<Match, "id" | "seasonId">) {
+export async function createPendingMatch(match: {
+  playedAt: string;
+  teamA: [string, string];
+  teamB: [string, string];
+}) {
+  if (!supabase) throw new Error("Supabase nao esta configurado.");
+
+  const { data, error } = await supabase
+    .rpc("create_pending_match", {
+      p_played_at: match.playedAt,
+      p_team_a_player_1: match.teamA[0],
+      p_team_a_player_2: match.teamA[1],
+      p_team_b_player_1: match.teamB[0],
+      p_team_b_player_2: match.teamB[1]
+    })
+    .returns<MatchRecord>();
+
+  if (error) throw new Error(error.message);
+  if (!data || "Error" in data) {
+    throw new Error("O Supabase nao criou o jogo pendente.");
+  }
+  return mapMatch(data as MatchRecord);
+}
+
+export async function updateMatch(id: string, match: CompletedMatchInput) {
   if (!supabase) throw new Error("Supabase nao esta configurado.");
 
   const { data, error } = await supabase
@@ -323,7 +467,7 @@ export async function deleteSeason(id: string) {
   if (!data) throw new Error("O Supabase nao apagou a epoca.");
 }
 
-export async function applyInactivityDecay() {
+export async function applyInactivityDecay(): Promise<number> {
   if (!supabase) return 0;
 
   const { data, error } = await supabase
@@ -333,7 +477,7 @@ export async function applyInactivityDecay() {
     .returns<number>();
 
   if (error) throw new Error(error.message);
-  return data ?? 0;
+  return typeof data === "number" ? data : 0;
 }
 
 export async function deleteMatch(id: string) {

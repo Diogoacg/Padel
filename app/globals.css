@@ -219,6 +219,170 @@ a {
   gap: 10px;
 }
 
+.compactInsights {
+  margin-bottom: 10px;
+}
+
+.expandedInsights {
+  margin-top: 10px;
+}
+
+.expandButton {
+  margin-bottom: 20px;
+  width: 100%;
+}
+
+.ratingHistory {
+  background: #fffaf0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  margin-bottom: 22px;
+  padding: 14px;
+}
+
+.ratingHistoryHeader {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ratingHistoryHeader > div {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ratingHistoryHeader svg {
+  color: var(--court);
+}
+
+.ratingHistoryHeader strong {
+  font-size: 1.25rem;
+}
+
+.ratingHistoryHeader span,
+.ratingHistoryFooter {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.ratingHistoryHeader em,
+.ratingHistoryFooter span:last-child {
+  border-radius: 8px;
+  font-style: normal;
+  font-weight: 950;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.ratingHistoryHeader em.gain {
+  background: rgba(20, 125, 100, 0.12);
+  color: var(--court);
+}
+
+.ratingHistoryHeader em.loss {
+  background: #fde2dd;
+  color: #a31f14;
+}
+
+.ratingLineChart {
+  background:
+    linear-gradient(180deg, rgba(229, 216, 195, 0.65) 0 1px, transparent 1px 50%, rgba(229, 216, 195, 0.5) 50% calc(50% + 1px), transparent calc(50% + 1px) 100%),
+    linear-gradient(90deg, rgba(229, 216, 195, 0.44) 0 1px, transparent 1px 100%);
+  background-size: 100% 50%, 25% 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  height: 104px;
+  overflow: hidden;
+  position: relative;
+}
+
+.ratingLineChart svg {
+  display: block;
+  height: 100%;
+  inset: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.ratingLine {
+  fill: none;
+  stroke: var(--court);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.ratingLineArea {
+  fill: rgba(20, 125, 100, 0.1);
+}
+
+.ratingPointLayer {
+  inset: 0;
+  position: absolute;
+}
+
+.ratingPoint {
+  border: 2px solid #fffaf0;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(32, 25, 20, 0.2);
+  height: 12px;
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: transform 140ms ease;
+  width: 12px;
+}
+
+.ratingPoint:hover {
+  transform: translate(-50%, -50%) scale(1.22);
+}
+
+.ratingPoint.gain {
+  background: var(--court);
+}
+
+.ratingPoint.loss {
+  background: #b73522;
+}
+
+.ratingAxis {
+  background: rgba(255, 250, 240, 0.82);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  padding: 2px 6px;
+  position: absolute;
+  right: 8px;
+}
+
+.ratingAxis.top {
+  top: 7px;
+}
+
+.ratingAxis.bottom {
+  bottom: 7px;
+}
+
+.ratingHistoryFooter {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+}
+
+.ratingHistoryFooter span:last-child {
+  background: rgba(216, 247, 80, 0.34);
+  color: var(--ink);
+}
+
 @keyframes skeletonShimmer {
   0% {
     background-position: 120% 0;
@@ -300,7 +464,7 @@ a {
   box-shadow: 0 -10px 30px rgba(43, 31, 21, 0.14);
   display: grid;
   gap: 4px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   left: 50%;
   max-width: 860px;
   padding: 8px 8px 10px;
@@ -634,6 +798,180 @@ h2 {
   color: white;
 }
 
+.drawStatus {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.drawMode {
+  background: #fffaf0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+  padding: 5px;
+}
+
+.drawMode button {
+  background: transparent;
+  color: var(--muted);
+  min-height: 38px;
+}
+
+.drawMode button.active {
+  background: var(--ink);
+  color: white;
+}
+
+.drawStatus > div {
+  align-items: center;
+  background: #fffaf0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.drawStatus svg {
+  color: var(--court);
+}
+
+.drawStatus strong {
+  font-size: 1.1rem;
+}
+
+.drawStatus span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.playerPicker {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.playerPick {
+  background: #fffaf0;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  min-height: 56px;
+  text-align: left;
+}
+
+.playerPick.selected {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: white;
+}
+
+.playerPick:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.playerPick span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playerPick strong {
+  color: var(--clay);
+}
+
+.playerPick.selected strong {
+  color: var(--lime);
+}
+
+.drawButton {
+  margin-top: 14px;
+}
+
+.drawResult {
+  margin-top: 14px;
+}
+
+.drawHint {
+  background: #fffaf0;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 850;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.drawGap {
+  align-items: center;
+  background: rgba(216, 247, 80, 0.34);
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  font-weight: 950;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 10px;
+}
+
+.drawTeams {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.drawTeam {
+  background: #fffaf0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  padding: 14px;
+}
+
+.drawTeam span {
+  color: var(--clay);
+  font-size: 0.78rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.drawTeam strong {
+  font-size: 1.1rem;
+  line-height: 1.15;
+}
+
+.drawTeam em {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.drawRegisterLink {
+  align-items: center;
+  border-radius: 8px;
+  display: inline-flex;
+  font-weight: 900;
+  justify-content: center;
+  margin-top: 14px;
+  min-height: 44px;
+  padding: 0 14px;
+  text-align: center;
+  width: 100%;
+}
+
 .playerList,
 .matchList {
   display: grid;
@@ -717,6 +1055,10 @@ h2 {
   justify-items: center;
   min-width: 86px;
   padding: 9px 10px;
+}
+
+.gameScoreBlock.pending {
+  background: var(--ink);
 }
 
 .gameScoreBlock strong {
@@ -1556,6 +1898,7 @@ label {
   .metrics,
   .dashboardGrid,
   .teams,
+  .drawTeams,
   .scoreLine,
   .setLine,
   .playerDetailGrid,
@@ -1834,6 +2177,19 @@ label {
     display: grid;
   }
 
+  .drawStatus {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .drawStatus .textButton {
+    width: 100%;
+  }
+
+  .playerPicker {
+    grid-template-columns: 1fr;
+  }
+
   .iconButton {
     width: 100%;
   }
@@ -2046,4 +2402,16 @@ label {
   .setsDetail strong {
     font-size: 1.1rem;
   }
+}
+.drawDate {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.drawDate input {
+  width: 100%;
 }

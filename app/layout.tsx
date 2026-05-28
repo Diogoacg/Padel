@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BottomNav } from "@/app/components/BottomNav";
+import { InactivityDecayRunner } from "@/app/components/InactivityDecayRunner";
 import { QueryProvider } from "@/app/components/QueryProvider";
 import "./globals.css";
 
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="pt">
       <body>
         <QueryProvider>
+          <InactivityDecayRunner />
           {children}
           <BottomNav />
         </QueryProvider>
