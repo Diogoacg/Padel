@@ -4,9 +4,9 @@ import { AlertCircle, ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMatch, usePlayers, useUpdateMatch } from "@/lib/padel-queries";
-import type { Player } from "@/lib/padel-data";
+import MatchResultFields, { scoreDraftFromSets, type ScoreDraft } from "@/app/components/MatchResultFields";
 import {
   averageRating,
   calculateMatchScore,
@@ -26,35 +26,21 @@ type MatchForm = {
 export default function EditMatchPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const [form, setForm] = useState<MatchForm | null>(null);
+  const [editedForm, setEditedForm] = useState<MatchForm | null>(null);
   const [error, setError] = useState("");
+  const [editedScoreDraft, setEditedScoreDraft] = useState<ScoreDraft | null>(null);
   const matchQuery = useMatch(params.id);
   const playersQuery = usePlayers();
   const updateMatchMutation = useUpdateMatch();
   const players = playersQuery.data ?? [];
   const saving = updateMatchMutation.isPending;
 
-  useEffect(() => {
-    const loadedMatch = matchQuery.data;
-    if (loadedMatch && !form) {
-      const pendingSets: MatchFormSets = [{ a: 6, b: 4 }, { a: 6, b: 4 }, { a: 0, b: 0 }];
-      setForm({
-        playedAt: loadedMatch.playedAt,
-        a1: loadedMatch.teamA[0],
-        a2: loadedMatch.teamA[1],
-        b1: loadedMatch.teamB[0],
-        b2: loadedMatch.teamB[1],
-        sets: loadedMatch.status === "pending" ? pendingSets : loadedMatch.sets
-      });
-    }
-  }, [form, matchQuery.data]);
-
-  useEffect(() => {
-    const queryError = matchQuery.error ?? playersQuery.error;
-    if (queryError) {
-      setError(queryError instanceof Error ? queryError.message : "Erro a abrir edicao.");
-    }
-  }, [matchQuery.error, playersQuery.error]);
+  const form = editedForm ?? (matchQuery.data ? matchFormFromMatch(matchQuery.data) : null);
+  const scoreDraft = editedScoreDraft ?? (form
+    ? form.sets.every((set) => set.a === 0 && set.b === 0) ? emptyScoreDraft() : scoreDraftFromSets(form.sets)
+    : null);
+  const queryError = matchQuery.error ?? playersQuery.error;
+  const displayedError = error || (queryError ? queryError instanceof Error ? queryError.message : "Erro a abrir edicao." : "");
 
   const saveMatch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -67,6 +53,11 @@ export default function EditMatchPage() {
     }
     if (new Set(ids).size !== 4) {
       setError("Escolhe 4 jogadores diferentes.");
+      return;
+    }
+
+    if (!scoreDraft || scoreDraft.slice(0, 2).some((set) => set.a === "" || set.b === "") || (scoreDraft[2].a === "") !== (scoreDraft[2].b === "")) {
+      setError("Preenche os dois valores de cada set.");
       return;
     }
 
@@ -120,10 +111,10 @@ export default function EditMatchPage() {
         <h1>{matchQuery.data?.status === "pending" ? "Fechar jogo" : "Editar jogo"}</h1>
       </section>
 
-      {error ? (
+      {displayedError ? (
         <div className="notice" role="alert">
           <AlertCircle size={18} aria-hidden="true" />
-          {error}
+          {displayedError}
         </div>
       ) : null}
 
@@ -134,68 +125,26 @@ export default function EditMatchPage() {
             <label>
               Data
               <input
-                type="date"
-                value={form.playedAt}
-                onChange={(event) => setForm({ ...form, playedAt: event.target.value })}
+              type="date"
+              required
+              value={form.playedAt}
+              onChange={(event) => setEditedForm({ ...form, playedAt: event.target.value })}
               />
             </label>
 
-            <div className="teams">
-              <TeamSelect
-                title="Equipa A"
-                first={form.a1}
-                second={form.a2}
-                players={players}
-                onFirst={(a1) => setForm({ ...form, a1 })}
-                onSecond={(a2) => setForm({ ...form, a2 })}
-              />
-              <TeamSelect
-                title="Equipa B"
-                first={form.b1}
-                second={form.b2}
-                players={players}
-                onFirst={(b1) => setForm({ ...form, b1 })}
-                onSecond={(b2) => setForm({ ...form, b2 })}
-              />
-            </div>
+            <MatchResultFields
+              players={players}
+              teamA={[form.a1, form.a2]}
+              teamB={[form.b1, form.b2]}
+              scoreDraft={scoreDraft ?? scoreDraftFromSets(form.sets)}
+              onTeamChange={(field, value) => setEditedForm((current) => swapTeamPlayer(current ?? form, field, value))}
+              onScoreDraftChange={(draft) => {
+                setEditedScoreDraft(draft);
+                setEditedForm({ ...form, sets: draft.map((set) => ({ a: set.a === "" ? 0 : Number(set.a), b: set.b === "" ? 0 : Number(set.b) })) as MatchFormSets });
+              }}
+            />
 
-            <div className="setBoard">
-              {form.sets.map((set, index) => (
-                <div className="setLine" key={index}>
-                  <span>Set {index + 1}</span>
-                  <label>
-                    A
-                    <input
-                      type="number"
-                      min="0"
-                      value={set.a}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          sets: updateSetScore(form.sets, index, "a", Number(event.target.value))
-                        })
-                      }
-                    />
-                  </label>
-                  <label>
-                    B
-                    <input
-                      type="number"
-                      min="0"
-                      value={set.b}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          sets: updateSetScore(form.sets, index, "b", Number(event.target.value))
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              ))}
-            </div>
-
-            <button className="primary" disabled={saving || players.length < 4} type="submit">
+            <button className="primary" disabled={saving || players.length < 4 || Boolean(queryError)} type="submit">
               <Save size={16} aria-hidden="true" />
               {saving
                 ? matchQuery.data?.status === "pending" ? "A fechar..." : "A corrigir..."
@@ -208,47 +157,20 @@ export default function EditMatchPage() {
   );
 }
 
-function TeamSelect({
-  title,
-  first,
-  second,
-  players,
-  onFirst,
-  onSecond
-}: {
-  title: string;
-  first: string;
-  second: string;
-  players: Player[];
-  onFirst: (value: string) => void;
-  onSecond: (value: string) => void;
-}) {
-  return (
-    <fieldset>
-      <legend>{title}</legend>
-      <select value={first} onChange={(event) => onFirst(event.target.value)}>
-        <option value="" disabled>Quem?</option>
-        {players.map((player) => (
-          <option key={player.id} value={player.id}>{player.name}</option>
-        ))}
-      </select>
-      <select value={second} onChange={(event) => onSecond(event.target.value)}>
-        <option value="" disabled>Quem?</option>
-        {players.map((player) => (
-          <option key={player.id} value={player.id}>{player.name}</option>
-        ))}
-      </select>
-    </fieldset>
-  );
+function matchFormFromMatch(match: { playedAt: string; teamA: [string, string]; teamB: [string, string]; status: string; sets: MatchFormSets }): MatchForm {
+  return {
+    playedAt: match.playedAt,
+    a1: match.teamA[0], a2: match.teamA[1], b1: match.teamB[0], b2: match.teamB[1],
+    sets: match.status === "pending" ? [{ a: 0, b: 0 }, { a: 0, b: 0 }, { a: 0, b: 0 }] : match.sets
+  };
 }
 
-function updateSetScore(
-  sets: MatchFormSets,
-  index: number,
-  side: "a" | "b",
-  value: number
-) {
-  return sets.map((set, currentIndex) =>
-    currentIndex === index ? { ...set, [side]: value } : set
-  ) as MatchFormSets;
+function emptyScoreDraft(): ScoreDraft {
+  return [{ a: "", b: "" }, { a: "", b: "" }, { a: "", b: "" }];
+}
+
+function swapTeamPlayer(form: MatchForm, field: "a1" | "a2" | "b1" | "b2", value: string): MatchForm {
+  const fields = ["a1", "a2", "b1", "b2"] as const;
+  const occupied = fields.find((candidate) => candidate !== field && form[candidate] === value);
+  return occupied ? { ...form, [field]: value, [occupied]: form[field] } : { ...form, [field]: value };
 }

@@ -5,26 +5,27 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ListSkeleton } from "@/app/components/LoadingSkeleton";
 import { useActiveSeason, useCreatePendingMatch, useMatches, usePlayers } from "@/lib/padel-queries";
-import type { Match, Player } from "@/lib/padel-data";
-
-type DrawResult = {
-  teamA: [Player, Player];
-  teamB: [Player, Player];
-  gap: number;
-  averageA: number;
-  averageB: number;
-};
+import type { Player } from "@/lib/padel-data";
+import {
+  buildBalancedDraw,
+  buildRandomDraw,
+  findLastMatchPairing,
+  type DrawResult
+} from "@/lib/draw-utils";
 
 export default function DrawPage() {
   const router = useRouter();
+  const [mode, setMode] = useState<"balanced" | "random">("balanced");
   const playersQuery = usePlayers();
   const activeSeasonQuery = useActiveSeason();
-  const matchesQuery = useMatches(activeSeasonQuery.data?.id, !activeSeasonQuery.isLoading);
-  const players = playersQuery.data ?? [];
-  const matches = matchesQuery.data ?? [];
+  const matchesQuery = useMatches(
+    activeSeasonQuery.data?.id,
+    mode === "random" && activeSeasonQuery.isSuccess && Boolean(activeSeasonQuery.data?.id)
+  );
+  const players = useMemo(() => playersQuery.data ?? [], [playersQuery.data]);
+  const matches = useMemo(() => matchesQuery.data ?? [], [matchesQuery.data]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [plannedAt, setPlannedAt] = useState(new Date().toISOString().slice(0, 10));
-  const [mode, setMode] = useState<"balanced" | "random">("balanced");
   const [draw, setDraw] = useState<DrawResult | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -35,10 +36,9 @@ export default function DrawPage() {
       .filter((player): player is Player => Boolean(player)),
     [players, selectedIds]
   );
-  const previousDraw = useMemo(
-    () => selectedIds.length === 4 ? findLastMatchPairing(matches, selectedIds) : null,
-    [matches, selectedIds]
-  );
+  const previousDraw = useMemo(() => (
+    selectedIds.length === 4 ? findLastMatchPairing(matches, selectedIds) : null
+  ), [matches, selectedIds]);
 
   const togglePlayer = (id: string) => {
     setDraw(null);
@@ -52,17 +52,28 @@ export default function DrawPage() {
 
   const generateTeams = () => {
     if (selectedPlayers.length !== 4) return;
-    const nextDraw =
-      mode === "balanced"
+    if (mode === "random" && (!activeSeasonQuery.isSuccess || !activeSeasonQuery.data?.id || matchesQuery.isLoading || matchesQuery.isError)) {
+      setError("Não é possível sortear sem confirmar a época e o histórico. Tenta novamente.");
+      return;
+    }
+    let nextDraw: DrawResult;
+    try {
+      nextDraw = mode === "balanced"
         ? buildBalancedDraw(selectedPlayers)
         : buildRandomDraw(selectedPlayers, previousDraw);
+    } catch (drawError) {
+      setError(drawError instanceof Error ? drawError.message : "Não consegui sortear as duplas.");
+      return;
+    }
 
     setError("");
     setDraw(nextDraw);
     setSuccess(
       mode === "balanced"
         ? "Duplas equilibradas. Já dá para mandar a convocatória."
-        : "Duplas sorteadas. Não repetiu o último desenho destes 4."
+        : previousDraw
+          ? "Duplas sorteadas. Não repetiu o último desenho destes 4."
+          : "Duplas sorteadas."
     );
   };
 
@@ -103,6 +114,22 @@ export default function DrawPage() {
       <section className="panel">
         {error ? <div className="notice" role="alert">{error}</div> : null}
         {success ? <div className="notice successNotice" role="status">{success}</div> : null}
+
+        {playersQuery.isError ? (
+          <div className="notice" role="alert">
+            Não consegui carregar os jogadores. <button className="textButton" onClick={() => void playersQuery.refetch()} type="button">Tentar novamente</button>
+          </div>
+        ) : null}
+        {activeSeasonQuery.isError ? (
+          <div className="notice" role="alert">
+            Não consegui carregar a época ativa. <button className="textButton" onClick={() => void activeSeasonQuery.refetch()} type="button">Tentar novamente</button>
+          </div>
+        ) : null}
+        {mode === "random" && matchesQuery.isError ? (
+          <div className="notice" role="alert">
+            Não consegui carregar o histórico. <button className="textButton" onClick={() => void matchesQuery.refetch()} type="button">Tentar novamente</button>
+          </div>
+        ) : null}
 
         <label className="drawDate">
           Data do jogo
@@ -179,7 +206,7 @@ export default function DrawPage() {
 
         <button
           className="primary drawButton"
-          disabled={selectedPlayers.length !== 4 || matchesQuery.isLoading}
+          disabled={selectedPlayers.length !== 4 || playersQuery.isLoading || (mode === "random" && (activeSeasonQuery.isLoading || activeSeasonQuery.isError || !activeSeasonQuery.data?.id || matchesQuery.isLoading || matchesQuery.isError))}
           onClick={generateTeams}
           type="button"
         >
@@ -243,77 +270,4 @@ function DrawTeam({
       <em>{average} rating médio</em>
     </article>
   );
-}
-
-function buildBalancedDraw(players: Player[]): DrawResult {
-  const rankedPairings = allPairings(players)
-    .map(([teamA, teamB]) => {
-      const averageA = teamAverage(teamA);
-      const averageB = teamAverage(teamB);
-
-      return {
-        teamA,
-        teamB,
-        averageA,
-        averageB,
-        gap: Math.abs(averageA - averageB)
-      };
-    })
-    .sort((a, b) => a.gap - b.gap);
-
-  return rankedPairings[0];
-}
-
-function buildRandomDraw(players: Player[], previousDraw: string | null): DrawResult {
-  const pairings = allPairings(players);
-  const availablePairings = previousDraw
-    ? pairings.filter((pairing) => pairingKey(pairing[0], pairing[1]) !== previousDraw)
-    : pairings;
-  const selectedPairing = availablePairings[Math.floor(Math.random() * availablePairings.length)];
-  const [teamA, teamB] = selectedPairing;
-  const averageA = teamAverage(teamA);
-  const averageB = teamAverage(teamB);
-
-  return {
-    teamA,
-    teamB,
-    averageA,
-    averageB,
-    gap: Math.abs(averageA - averageB)
-  };
-}
-
-function allPairings(players: Player[]): Array<[[Player, Player], [Player, Player]]> {
-  return [
-    [[players[0], players[1]], [players[2], players[3]]],
-    [[players[0], players[2]], [players[1], players[3]]],
-    [[players[0], players[3]], [players[1], players[2]]]
-  ];
-}
-
-function findLastMatchPairing(matches: Match[], playerIds: string[]) {
-  const selectedKey = [...playerIds].sort().join(":");
-  const lastMatch = matches.find((match) =>
-    [...match.teamA, ...match.teamB].sort().join(":") === selectedKey
-  );
-
-  return lastMatch ? pairingKeyFromIds(lastMatch.teamA, lastMatch.teamB) : null;
-}
-
-function pairingKey(teamA: [Player, Player], teamB: [Player, Player]) {
-  return pairingKeyFromIds(
-    [teamA[0].id, teamA[1].id],
-    [teamB[0].id, teamB[1].id]
-  );
-}
-
-function pairingKeyFromIds(teamA: [string, string], teamB: [string, string]) {
-  return [
-    [...teamA].sort().join("-"),
-    [...teamB].sort().join("-")
-  ].sort().join(":");
-}
-
-function teamAverage(players: [Player, Player]) {
-  return Math.round((players[0].rating + players[1].rating) / 2);
 }

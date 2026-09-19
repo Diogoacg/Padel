@@ -4,7 +4,7 @@ import { ArrowLeft, ChartNoAxesColumnIncreasing, Flame, Shield, TrendingDown, Tr
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ListSkeleton, SkeletonBlock } from "@/app/components/LoadingSkeleton";
 import { useActiveSeason, useMatches, usePlayer, usePlayerRatingHistory, usePlayers, usePrefetchMatch } from "@/lib/padel-queries";
 import type { Match, Player, PlayerRatingHistoryPoint } from "@/lib/padel-data";
@@ -25,8 +25,8 @@ export default function PlayerPage() {
   );
   const prefetchMatch = usePrefetchMatch();
   const player = playerQuery.data ?? null;
-  const players = playersQuery.data ?? [];
-  const matches = matchesQuery.data ?? [];
+  const players = useMemo(() => playersQuery.data ?? [], [playersQuery.data]);
+  const matches = useMemo(() => matchesQuery.data ?? [], [matchesQuery.data]);
   const ratingHistory = ratingHistoryQuery.data ?? [];
   const loading =
     playerQuery.isLoading ||
@@ -35,23 +35,13 @@ export default function PlayerPage() {
     matchesQuery.isLoading ||
     ratingHistoryQuery.isLoading;
 
-  useEffect(() => {
-    const queryError =
-      playerQuery.error ??
-      playersQuery.error ??
-      activeSeasonQuery.error ??
-      matchesQuery.error ??
-      ratingHistoryQuery.error;
-    if (queryError) {
-      setError(queryError instanceof Error ? queryError.message : "Erro a abrir a ficha.");
-    }
-  }, [
-    activeSeasonQuery.error,
-    matchesQuery.error,
-    playerQuery.error,
-    playersQuery.error,
-    ratingHistoryQuery.error
-  ]);
+  const queryError =
+    playerQuery.error ??
+    playersQuery.error ??
+    activeSeasonQuery.error ??
+    matchesQuery.error ??
+    ratingHistoryQuery.error;
+  const displayError = error || (queryError instanceof Error ? queryError.message : queryError ? "Erro a abrir a ficha." : "");
 
   const playerMatches = useMemo(
     () => matches.filter((match) => matchHasPlayer(match, params.id)),
@@ -74,7 +64,7 @@ export default function PlayerPage() {
       </Link>
 
       {loading ? <PlayerProfileSkeleton /> : null}
-      {error ? <div className="notice">{error}</div> : null}
+      {displayError ? <div className="notice">{displayError}</div> : null}
 
       {!loading && player ? (
         <section className="playerDetailGrid">

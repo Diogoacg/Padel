@@ -2,8 +2,7 @@
 
 import { ArrowLeft, CalendarDays, Gauge, Pencil, Swords, Trash2, Trophy } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { SkeletonBlock } from "@/app/components/LoadingSkeleton";
@@ -24,19 +23,19 @@ export default function MatchPage() {
   const deleting = deleteMatchMutation.isPending;
 
   useEffect(() => {
-    const queryError = matchQuery.error ?? playersQuery.error;
-    if (queryError) {
-      setError(queryError instanceof Error ? queryError.message : "Erro a abrir o jogo.");
-    }
-  }, [matchQuery.error, playersQuery.error]);
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("saved") === "result") {
-      setSuccess("Resultado guardado. O jogo ficou fechado.");
-      window.history.replaceState(null, "", window.location.pathname);
+      const timeoutId = window.setTimeout(() => {
+        setSuccess("Resultado guardado. O jogo ficou fechado.");
+        window.history.replaceState(null, "", window.location.pathname);
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
     }
   }, []);
+
+  const queryError = matchQuery.error ?? playersQuery.error;
+  const displayError = error || (queryError instanceof Error ? queryError.message : queryError ? "Erro a abrir o jogo." : "");
+  const displaySuccess = success;
 
   const winner = useMemo(() => {
     if (!match) return "";
@@ -67,8 +66,8 @@ export default function MatchPage() {
       </Link>
 
       {loading ? <MatchDetailSkeleton /> : null}
-      {error ? <div className="notice">{error}</div> : null}
-      {success ? <div className="notice successNotice" role="status">{success}</div> : null}
+      {displayError ? <div className="notice">{displayError}</div> : null}
+      {displaySuccess ? <div className="notice successNotice" role="status">{displaySuccess}</div> : null}
 
       {!loading && match ? (
         <section className="matchDetailStack">
