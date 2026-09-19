@@ -3,7 +3,7 @@
 import { Info, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ListSkeleton } from "@/app/components/LoadingSkeleton";
 import {
   useActiveSeason,
@@ -30,15 +30,19 @@ export default function PlayersPage() {
   const deleteSeasonMutation = useDeleteSeason();
   const prefetchPlayer = usePrefetchPlayer();
   const activeSeason = activeSeasonQuery.data ?? null;
-  const seasons = seasonsQuery.data ?? [];
+  const seasons = useMemo(() => seasonsQuery.data ?? [], [seasonsQuery.data]);
+  const effectiveSelectedSeasonId = selectedSeasonId || activeSeason?.id || seasons[0]?.id || "";
+  const effectiveViewedSeasonId = viewedSeasonId || activeSeason?.id || seasons[0]?.id || "";
   const standingsQuery = useSeasonStandings(
-    viewedSeasonId,
-    Boolean(viewedSeasonId && viewedSeasonId !== activeSeason?.id)
+    effectiveViewedSeasonId,
+    Boolean(effectiveViewedSeasonId && effectiveViewedSeasonId !== activeSeason?.id)
   );
-  const players: Player[] =
-    viewedSeasonId && viewedSeasonId !== activeSeason?.id
+  const players: Player[] = useMemo(
+    () => effectiveViewedSeasonId && effectiveViewedSeasonId !== activeSeason?.id
       ? standingsQuery.data ?? []
-      : playersQuery.data ?? [];
+      : playersQuery.data ?? [],
+    [activeSeason?.id, effectiveViewedSeasonId, playersQuery.data, standingsQuery.data]
+  );
   const loading =
     playersQuery.isLoading ||
     activeSeasonQuery.isLoading ||
@@ -47,21 +51,9 @@ export default function PlayersPage() {
   const saving = createPlayerMutation.isPending;
   const seasonSaving = deleteSeasonMutation.isPending || standingsQuery.isFetching;
 
-  useEffect(() => {
-    const nextSeasonId = activeSeason?.id ?? seasons[0]?.id ?? "";
-    if (!selectedSeasonId && nextSeasonId) {
-      setSelectedSeasonId(nextSeasonId);
-      setViewedSeasonId(nextSeasonId);
-    }
-  }, [activeSeason?.id, seasons, selectedSeasonId]);
-
-  useEffect(() => {
-    const queryError =
-      playersQuery.error ?? activeSeasonQuery.error ?? seasonsQuery.error ?? standingsQuery.error;
-    if (queryError) {
-      setError(queryError instanceof Error ? queryError.message : "Nao consegui carregar a malta.");
-    }
-  }, [activeSeasonQuery.error, playersQuery.error, seasonsQuery.error, standingsQuery.error]);
+  const queryError =
+    playersQuery.error ?? activeSeasonQuery.error ?? seasonsQuery.error ?? standingsQuery.error;
+  const displayError = error || (queryError instanceof Error ? queryError.message : queryError ? "Nao consegui carregar a malta." : "");
 
   const rankedPlayers = useMemo(
     () => [...players].sort((a, b) => b.rating - a.rating),
@@ -84,7 +76,7 @@ export default function PlayersPage() {
   };
 
   const viewSeason = async () => {
-    const seasonId = selectedSeasonId;
+    const seasonId = selectedSeasonId || effectiveSelectedSeasonId;
     if (!seasonId) return;
 
     try {
@@ -107,7 +99,9 @@ export default function PlayersPage() {
     try {
       setError("");
       await deleteSeasonMutation.mutateAsync(seasonId);
-      const nextSeasonId = activeSeason?.id ?? seasons.find((item) => item.id !== seasonId)?.id ?? "";
+      const nextSeasonId = activeSeason?.id !== seasonId
+        ? activeSeason?.id ?? seasons.find((item) => item.id !== seasonId)?.id ?? ""
+        : seasons.find((item) => item.id !== seasonId)?.id ?? "";
       setSelectedSeasonId(nextSeasonId);
       setViewedSeasonId(nextSeasonId);
       setSuccess(`${season.name} foi apagada.`);
@@ -150,7 +144,7 @@ export default function PlayersPage() {
           </div>
         ) : null}
 
-        {error ? <div className="notice">{error}</div> : null}
+        {displayError ? <div className="notice">{displayError}</div> : null}
         {success ? <div className="notice successNotice">{success}</div> : null}
 
         <div className="seasonBox">
@@ -165,7 +159,7 @@ export default function PlayersPage() {
                 aria-label="Escolher época antiga"
                 name="seasonId"
                 onChange={(event) => setSelectedSeasonId(event.target.value)}
-                value={selectedSeasonId}
+                value={effectiveSelectedSeasonId}
               >
                 {seasons.map((season) => (
                   <option key={season.id} value={season.id}>

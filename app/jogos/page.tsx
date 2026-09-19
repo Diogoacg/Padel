@@ -31,21 +31,23 @@ export default function MatchesPage() {
   const saving = deleteMatchMutation.isPending;
 
   useEffect(() => {
-    if (!selectedSeasonId && nextSeasonId) {
-      setSelectedSeasonId(nextSeasonId);
-    }
-  }, [nextSeasonId, selectedSeasonId]);
-
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("created") === "pending") {
-      setSuccess("Jogo pendente criado. Quando houver resultado, toca nele e fecha a conta.");
-      window.history.replaceState(null, "", window.location.pathname);
-    } else if (params.get("deleted") === "1") {
-      setSuccess("Jogo apagado e lista atualizada.");
-      window.history.replaceState(null, "", window.location.pathname);
+    const message = params.get("created") === "pending"
+      ? "Jogo pendente criado. Quando houver resultado, toca nele e fecha a conta."
+      : params.get("deleted") === "1"
+        ? "Jogo apagado e lista atualizada."
+        : "";
+    if (message) {
+      const timeoutId = window.setTimeout(() => {
+        setSuccess(message);
+        window.history.replaceState(null, "", window.location.pathname);
+      }, 0);
+      return () => window.clearTimeout(timeoutId);
     }
   }, []);
+  const displaySuccess = success;
+  const queryError = activeSeasonQuery.error ?? seasonsQuery.error ?? playersQuery.error ?? matchesQuery.error;
+  const displayError = error || (queryError instanceof Error ? queryError.message : queryError ? "Erro a carregar jogos." : "");
 
   const playerName = (id: string) =>
     players.find((player) => player.id === id)?.name ?? "Jogador";
@@ -73,8 +75,8 @@ export default function MatchesPage() {
         {selectedSeason ? <p className="intro compactIntro">{selectedSeason.name}</p> : null}
       </section>
 
-      {error ? <div className="notice" role="alert">{error}</div> : null}
-      {success ? <div className="notice successNotice" role="status">{success}</div> : null}
+      {displayError ? <div className="notice" role="alert">{displayError}</div> : null}
+      {displaySuccess ? <div className="notice successNotice" role="status">{displaySuccess}</div> : null}
 
       <section className="panel">
         {seasons.length > 1 ? (
@@ -82,7 +84,7 @@ export default function MatchesPage() {
             <label>
               Época
               <select
-                value={selectedSeasonId}
+                value={selectedSeasonId || nextSeasonId}
                 onChange={(event) => setSelectedSeasonId(event.target.value)}
               >
                 {seasons.map((season) => (
