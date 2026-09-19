@@ -25,7 +25,7 @@ O CI reproduz o fluxo local definido no `package.json` e instala o navegador com
 - `npm run build`: **passou**, incluindo TypeScript, local.
 - `npm run test:e2e -- --workers=1`: **11/11**, Chromium 153 local, Supabase simulado. A instalação habitual do Playwright tinha expirado; usou-se um binário Chromium descartável externo ao repositório. O sétimo teste mobile da iteração 001 passou agora.
 - `git diff --check`: **passou**, local.
-- `npx playwright install --with-deps chromium` e upload de relatório/traces no runner GitHub: **pendentes da execução da PR**; não afirmar como verificados antes de consultar os checks.
+- [Execução GitHub Actions da PR #2](https://github.com/Diogoacg/Padel/actions/runs/35469431236): **passou**. As etapas de instalação de dependências, testes unitários, lint, build, instalação Playwright Chromium e E2E ficaram todas verdes em Ubuntu/Node 24. O upload condicional dos relatórios não foi exercitado, pois não houve falha.
 
 ## Próximo passo
 
