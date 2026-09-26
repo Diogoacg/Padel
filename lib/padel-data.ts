@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { localDateString } from "@/lib/local-date";
 import type {
   HomeDashboardRecord,
   MatchRecord,
@@ -427,7 +428,7 @@ export async function startNewSeason(name: string) {
   const { data, error } = await supabase
     .rpc("start_new_season", {
       p_name: name,
-      p_starts_at: new Date().toISOString().slice(0, 10)
+      p_starts_at: localDateString()
     })
     .returns<SeasonRecord>();
 
@@ -472,7 +473,7 @@ export async function applyInactivityDecay(): Promise<number> {
 
   const { data, error } = await supabase
     .rpc("apply_inactivity_decay", {
-      p_today: new Date().toISOString().slice(0, 10)
+      p_today: localDateString()
     })
     .returns<number>();
 
