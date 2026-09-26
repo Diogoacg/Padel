@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { useMatch, usePlayers, useUpdateMatch } from "@/lib/padel-queries";
+import { localDateString } from "@/lib/local-date";
 import MatchResultFields, { scoreDraftFromSets, type ScoreDraft } from "@/app/components/MatchResultFields";
 import {
   averageRating,
@@ -47,7 +48,7 @@ export default function EditMatchPage() {
     if (!form) return;
 
     const ids = [form.a1, form.a2, form.b1, form.b2];
-    if (form.playedAt > new Date().toISOString().slice(0, 10)) {
+    if (form.playedAt > localDateString()) {
       setError("Ainda nao da para meter resultado de um jogo futuro.");
       return;
     }
