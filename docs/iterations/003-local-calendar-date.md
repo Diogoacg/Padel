@@ -28,6 +28,7 @@ Usar o dia civil do utilizador sempre que a aplicação quer dizer “hoje”. A
 - `npm run build`: passou, incluindo TypeScript e geração das páginas.
 - `git diff --check`: passou.
 - A suite E2E local não arrancou: o binário Chromium temporário terminou com `SIGSEGV` e a transferência oficial do Playwright devolveu um arquivo vazio/truncado. Os testes foram descobertos por `playwright test --list`; o resultado do GitHub Actions deve ser usado como verificação E2E desta revisão.
+- [GitHub Actions — Quality #4](https://github.com/Diogoacg/Padel/actions/runs/36272256417): passou em Ubuntu/Node 24, incluindo instalação do Chromium e os 13 testes E2E.
 
 Não foram executadas RPCs reais nem feitas alterações à base de dados. Os testes de navegador simulam o Supabase.
 
