@@ -23,8 +23,12 @@ Uma leitura inofensiva do projeto Supabase confirmou que a fórmula anterior con
 - `npm run build`: passou com verificação TypeScript.
 - E2E local: não executado nesta sessão porque Chromium não estava instalado e as tentativas recentes de download neste ambiente devolveram arquivos truncados. O CI da PR deverá executar o E2E.
 
-A migração remota ainda não foi aplicada. A projeção é de leitura/simulação; apenas um replay na instância PostgreSQL do Supabase após integrar a PR confirmará o ranking definitivo.
+## Aplicação após integração da PR #9 (2026-09-27)
+
+Com autorização do proprietário, apliquei apenas a migração `elo_straight_sets_140_20260927` no projeto Padel pelo conector Supabase (`apply_migration`). O histórico remoto regista agora a versão `20260927114643`. Antes da execução, a função ainda aplicava 1,10 para 2–0 e não existia snapshot desta iteração.
+
+A verificação read-only após a execução confirmou um snapshot pré-migração, multiplicadores 1,40 para 2–0 de ambos os lados e 0,90 para 2–1, 17 jogos concluídos preservados e 68 eventos Elo (quatro por jogo, sem eventos em falta). O ranking recalculado é **1053, 1046, 1011, 980, 973, 937, 800, 800**; coincide com a projeção local. O CI Quality #17 da PR #9 passou testes, lint, build, instalação de Chromium e E2E.
 
 ## Próximo passo
 
-Rever e integrar a PR. Aplicar exclusivamente a nova migration, conferir o snapshot, os multiplicadores e o ranking; investigar qualquer diferença causada por jogos novos.
+Acompanhar novos jogos e correções retroativas para confirmar que o replay continua a produzir resultados coerentes. O snapshot privado permite auditar o estado anterior.
