@@ -34,8 +34,8 @@ Sem novas dependências, alterações à aplicação ou SQL mutável no Supabase
 - `npm run lint`: passou.
 - `npm run build`: passou, incluindo TypeScript e geração das páginas.
 - `git diff --check`: passou.
-- `npm run test:e2e`: não executou os 13 cenários porque falta o executável Chromium. `npx playwright install chromium` também falhou ao transferir um arquivo truncado de 0 MiB; sem Chromium não há evidência E2E nesta sessão. Esta alteração não modifica comportamento da UI.
+- `npm run test:e2e -- --workers=1`: 13/13 passaram, incluindo cenários de data local e viewport de 320 px. O instalador Playwright e o Chrome normal falharam neste ambiente (download truncado e bloqueio de `socket()`); usei o Chrome Headless Shell 153.0.8010.12 oficial, validado com `unzip -t`, através de `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Esta alteração não modifica comportamento da UI.
 
 ## Próximo passo
 
-Confirmar no Dashboard ou CLI do Supabase se a migration está no histórico. Depois, acompanhar o CI da PR, que instala Chromium, e decidir se há reconciliação necessária com base no histórico. Não aplicar migrations nem executar SQL mutável em produção sem autorização explícita.
+Confirmar no Dashboard ou CLI do Supabase se a migration está no histórico. Depois, acompanhar o CI da PR e decidir se há reconciliação necessária com base no histórico. Não aplicar migrations nem executar SQL mutável em produção sem autorização explícita.
