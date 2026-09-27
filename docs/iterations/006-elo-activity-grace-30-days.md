@@ -22,10 +22,10 @@ Após o pedido de 30 dias, aplicou-se `20260927105417 elo_activity_grace_30_days
 
 ## Testes e limitações
 
-A versão original passou 21/21 testes locais, lint, build e 14/14 E2E antes desta alteração. Esta PR adapta os testes PostgreSQL locais aos limites de 30 dias e à migração adicional. O executor local está indisponível nesta sessão; **não declarar esta nova suite como executada localmente**. A confirmação no PostgreSQL 17.6 remoto cobre os valores observados hoje; o CI da PR deverá executar os testes alterados. A validação de concorrência e da próxima mudança de dia continua pendente.
+A versão original passou 21/21 testes locais, lint, build e 14/14 E2E antes desta alteração. Esta PR adapta os testes PostgreSQL locais aos limites de 30 dias e à migração adicional. O executor local está indisponível nesta sessão; **a nova suite não foi executada localmente**. O CI remoto [Quality #13](https://github.com/Diogoacg/Padel/actions/runs/36314193495) terminou com sucesso: testes unitários e de integração, lint, build e E2E Chromium passaram. A confirmação no PostgreSQL 17.6 remoto cobre os valores observados hoje. A validação de concorrência e da próxima mudança de dia continua pendente.
 
 O histórico anterior em `005-elo-activity-replay.md` descreve o estado e a projeção *antes* da aplicação e antes desta decisão; esta entrada documenta o estado posterior. Antes de futuros `db push`, reconciliar os nomes/versões de migrations do CLI com as duas versões registadas pelo conector.
 
 ## Próximo passo
 
-Acompanhar o CI da PR de seguimento e observar a primeira transição de dia 30 para 31 num jogador real. Não executar novamente as migrações Elo por suposição; consultar primeiro o histórico e o estado da função.
+Rever e integrar a PR de seguimento; observar a primeira transição de dia 30 para 31 num jogador real. Não executar novamente as migrações Elo por suposição; consultar primeiro o histórico e o estado da função.
