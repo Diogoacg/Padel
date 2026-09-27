@@ -18,8 +18,10 @@ async function selectTeams(page) {
   }
 }
 
-async function mockApi(page, { historyError = false, completed = false } = {}) {
+async function mockApi(page, { historyError = false, completed = false, failFirstMutation, listMatch = false } = {}) {
   const writes = [];
+  let failedFirstMutation = false;
+  let deleted = false;
   await page.route('https://padel-test.supabase.co/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -36,12 +38,18 @@ async function mockApi(page, { historyError = false, completed = false } = {}) {
       }
       data = url.searchParams.has('id') ? {
         ...match, ...(completed ? { status: 'completed', score_a: 2, set_1_a: 6, set_1_b: 4, set_2_a: 6, set_2_b: 3 } : {})
-      } : [];
+      } : listMatch && !deleted ? [{ ...match, ...(completed ? { status: 'completed', score_a: 2, set_1_a: 6, set_1_b: 4, set_2_a: 6, set_2_b: 3 } : {}) }] : [];
     }
     if (resource === 'apply_inactivity_decay') data = 0;
-    if (['register_match', 'replace_match', 'create_pending_match'].includes(resource)) {
-      writes.push({ resource, payload: request.postDataJSON() });
-      data = { ...match, status: 'completed' };
+    if (['register_match', 'replace_match', 'create_pending_match', 'delete_match'].includes(resource)) {
+      const payload = request.postDataJSON();
+      writes.push({ resource, payload });
+      if (resource === failFirstMutation && !failedFirstMutation) {
+        failedFirstMutation = true;
+        return route.fulfill({ status: 500, json: { message: `${resource} falhou pela primeira vez` } });
+      }
+      if (resource === 'delete_match') { deleted = true; data = true; }
+      else data = { ...match, status: 'completed' };
     }
     await route.fulfill({ json: data });
   });
@@ -76,6 +84,26 @@ test('new result starts empty, accepts 2–1 and sends entered sets', async ({ p
   await page.getByRole('button', { name: /Guardar resultado|Fechar resultado/ }).click();
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0].payload).toMatchObject({ p_score_a: 2, p_score_b: 1, p_set_3_a: 7, p_set_3_b: 5 });
+});
+
+test('register mutation failure keeps the result draft for a retry', async ({ page }) => {
+  const writes = await mockApi(page, { failFirstMutation: 'register_match' });
+  await page.goto('/registar');
+  await selectTeams(page);
+  for (const [set, a, b] of [[1, '6', '4'], [2, '6', '3']]) {
+    await page.getByLabel(`Set ${set}, Equipa A`, { exact: true }).fill(a);
+    await page.getByLabel(`Set ${set}, Equipa B`, { exact: true }).fill(b);
+  }
+
+  await page.getByRole('button', { name: 'Fechar resultado', exact: true }).click();
+  await expect(page.locator('.notice[role="alert"]')).toContainText('register_match falhou pela primeira vez');
+  await expect(page.getByLabel('Equipa A, jogador 1', { exact: true })).toHaveValue('player-0');
+  await expect(page.getByLabel('Set 1, Equipa A', { exact: true })).toHaveValue('6');
+
+  await page.getByRole('button', { name: 'Fechar resultado', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Resultado guardado');
+  expect(writes).toHaveLength(2);
+  expect(writes[1].payload).toMatchObject({ p_score_a: 2, p_score_b: 0, p_set_1_a: 6, p_set_2_b: 3 });
 });
 
 test('editing preserves recorded sets and mobile layout fits at 320px', async ({ page }) => {
@@ -145,4 +173,53 @@ test('deciding set survives an incomplete edit, but clears on a straight-set win
   await page.getByRole('button', { name: 'Guardar resultado', exact: true }).click();
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0].payload).toMatchObject({ p_score_a: 2, p_score_b: 0, p_set_3_a: 0, p_set_3_b: 0 });
+});
+
+test('replace mutation failure keeps the edited result for a retry', async ({ page }) => {
+  const writes = await mockApi(page, { completed: true, failFirstMutation: 'replace_match' });
+  await page.goto('/jogos/sample/editar');
+  await expect(page.getByLabel('Set 1, Equipa A', { exact: true })).toHaveValue('6');
+  await page.getByRole('button', { name: 'Guardar correção', exact: true }).click();
+  await expect(page.locator('.notice[role="alert"]')).toContainText('replace_match falhou pela primeira vez');
+  await expect(page.getByLabel('Set 1, Equipa A', { exact: true })).toHaveValue('6');
+  await expect(page.getByLabel('Equipa B, jogador 2', { exact: true })).toHaveValue('player-3');
+
+  await page.getByRole('button', { name: 'Guardar correção', exact: true }).click();
+  await expect(page).toHaveURL(/\/jogos\/sample/);
+  await expect(page.getByRole('status')).toContainText('Resultado guardado');
+  expect(writes).toHaveLength(2);
+  expect(writes[1].payload).toMatchObject({ p_match_id: 'sample', p_set_1_a: 6 });
+});
+
+test('delete mutation failure keeps the match available for a retry', async ({ page }) => {
+  const writes = await mockApi(page, { completed: true, failFirstMutation: 'delete_match' });
+  await page.goto('/jogos/sample');
+  await expect(page.getByRole('button', { name: 'Apagar jogo', exact: true })).toBeVisible();
+  page.on('dialog', (dialog) => dialog.accept());
+
+  await page.getByRole('button', { name: 'Apagar jogo', exact: true }).click();
+  await expect(page.locator('.notice')).toContainText('delete_match falhou pela primeira vez');
+  await expect(page.getByRole('button', { name: 'Apagar jogo', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Apagar jogo', exact: true }).click();
+  await expect(page).toHaveURL(/\/jogos$/);
+  await expect(page.getByRole('status')).toContainText('Jogo apagado');
+  expect(writes).toHaveLength(2);
+});
+
+test('failed optimistic delete restores the match in the archive', async ({ page }) => {
+  const writes = await mockApi(page, { listMatch: true, failFirstMutation: 'delete_match' });
+  await page.goto('/jogos');
+  const card = page.locator('.gameCard');
+  await expect(card).toHaveCount(1);
+  page.on('dialog', (dialog) => dialog.accept());
+
+  await card.getByTitle('Apagar jogo').click();
+  await expect(page.locator('.notice[role="alert"]')).toContainText('delete_match falhou pela primeira vez');
+  await expect(card).toHaveCount(1);
+
+  await card.getByTitle('Apagar jogo').click();
+  await expect(card).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('Jogo pendente apagado');
+  expect(writes).toHaveLength(2);
 });
