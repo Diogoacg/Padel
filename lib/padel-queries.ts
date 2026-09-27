@@ -11,7 +11,6 @@ import {
   createPendingMatch,
   createPlayer,
   deleteMatch,
-  deleteSeason,
   getActiveSeason,
   getHomeDashboard,
   getMatch,
@@ -84,12 +83,14 @@ export function useInactivityDecay() {
 export function useActiveSeason() {
   return useQuery({
     queryFn: getActiveSeason,
-    queryKey: queryKeys.activeSeason
+    queryKey: queryKeys.activeSeason,
+    refetchInterval: 60_000
   });
 }
 
-export function useHomeDashboard(seasonId?: string | null) {
+export function useHomeDashboard(seasonId?: string | null, enabled = true) {
   return useQuery({
+    enabled,
     queryFn: () => getHomeDashboard(seasonId),
     queryKey: queryKeys.homeDashboard(seasonId)
   });
@@ -98,7 +99,8 @@ export function useHomeDashboard(seasonId?: string | null) {
 export function usePlayers() {
   return useQuery({
     queryFn: getPlayers,
-    queryKey: queryKeys.players
+    queryKey: queryKeys.players,
+    refetchInterval: 60_000
   });
 }
 
@@ -106,7 +108,8 @@ export function usePlayer(id: string) {
   return useQuery({
     enabled: Boolean(id),
     queryFn: () => getPlayer(id),
-    queryKey: queryKeys.player(id)
+    queryKey: queryKeys.player(id),
+    refetchInterval: 60_000
   });
 }
 
@@ -146,7 +149,6 @@ export function useSeasons() {
 export function useSeasonStandings(seasonId: string, enabled = true) {
   return useQuery({
     enabled: enabled && Boolean(seasonId),
-    placeholderData: keepPreviousData,
     queryFn: () => getSeasonStandings(seasonId),
     queryKey: queryKeys.standings(seasonId)
   });
@@ -222,17 +224,6 @@ export function useUpdateMatch() {
   return useMutation({
     mutationFn: ({ id, match }: { id: string; match: CompletedMatchInput }) =>
       updateMatch(id, match),
-    onSuccess: async () => {
-      await invalidatePadelData(queryClient);
-    }
-  });
-}
-
-export function useDeleteSeason() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: deleteSeason,
     onSuccess: async () => {
       await invalidatePadelData(queryClient);
     }
