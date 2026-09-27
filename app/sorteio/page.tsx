@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { ListSkeleton } from "@/app/components/LoadingSkeleton";
 import { useActiveSeason, useCreatePendingMatch, useMatches, usePlayers } from "@/lib/padel-queries";
 import type { Player } from "@/lib/padel-data";
+import { localDateString } from "@/lib/local-date";
 import {
   buildBalancedDraw,
   buildRandomDraw,
@@ -25,7 +26,7 @@ export default function DrawPage() {
   const players = useMemo(() => playersQuery.data ?? [], [playersQuery.data]);
   const matches = useMemo(() => matchesQuery.data ?? [], [matchesQuery.data]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [plannedAt, setPlannedAt] = useState(new Date().toISOString().slice(0, 10));
+  const [plannedAt, setPlannedAt] = useState(localDateString());
   const [draw, setDraw] = useState<DrawResult | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
