@@ -11,6 +11,7 @@ Usar o dia civil do utilizador sempre que a aplicação quer dizer “hoje”. A
 - Registo e sorteio usam o helper como data inicial.
 - Início de época e cálculo de inatividade enviam a data local às RPCs existentes.
 - Os valores continuam a ser strings `YYYY-MM-DD`; não há conversões adicionais nem mudanças nos contratos Supabase.
+- A RPC `register_match` valida datas futuras com o fuso `Europe/Lisbon`, via migração de configuração da função, para manter a regra alinhada com a data civil do browser mesmo quando a sessão PostgreSQL está em UTC.
 - Não foram alterados SQL, schema, rating, apresentação de datas históricas ou regras de épocas.
 
 ## Critérios de aceitação
@@ -18,6 +19,7 @@ Usar o dia civil do utilizador sempre que a aplicação quer dizer “hoje”. A
 - Às `2026-09-19T23:30:00Z` em `Europe/Lisbon`, a aplicação usa `2026-09-20`.
 - O dia local é aceite e o dia seguinte é rejeitado como futuro.
 - O payload de `register_match` preserva exatamente a data escolhida.
+- A validação da RPC e a validação do browser aceitam o mesmo dia local perto da meia-noite.
 - Registo e sorteio não criam overflow horizontal a 320 px.
 - Testes unitários, lint, build, E2E e `git diff --check` passam.
 
@@ -30,6 +32,7 @@ Usar o dia civil do utilizador sempre que a aplicação quer dizer “hoje”. A
 - A primeira execução da nova PR no `master` passou unit tests, lint e build, mas revelou uma corrida no teste E2E de registo (12/13). O teste agora espera pelo estado de sucesso da primeira gravação antes de validar a rejeição da data futura.
 - [GitHub Actions — Quality #7](https://github.com/Diogoacg/Padel/actions/runs/36283246713): passou em Ubuntu/Node 24, incluindo instalação do Chromium e os 13 testes E2E.
 - A execução E2E local continua indisponível: o processo local do Next/Turbopack falhou ao arrancar com um erro interno. A verificação E2E autoritativa foi feita pelo runner GitHub.
+- A migração SQL adiciona apenas configuração à função existente; não recria tabelas nem altera dados. Não foi possível executar a migração contra uma instância PostgreSQL/Supabase neste ambiente, por isso é necessário aplicá-la no Supabase ao publicar a alteração.
 - A correção anterior tinha sido integrada na branch de uma PR já fechada, não no `master`; esta reaplicação foi aberta diretamente sobre `master` na [PR #4](https://github.com/Diogoacg/Padel/pull/4).
 
 Não foram executadas RPCs reais nem feitas alterações à base de dados. Os testes de navegador simulam o Supabase.
