@@ -8,6 +8,11 @@ const migration = readFileSync(
   "utf8",
 );
 
+const graceMigration = readFileSync(
+  new URL("../supabase/migrations/20260927_elo_activity_grace_30_days.sql", import.meta.url),
+  "utf8",
+);
+
 const ids = [
   "00000000-0000-4000-8000-000000000001",
   "00000000-0000-4000-8000-000000000002",
@@ -138,6 +143,7 @@ async function applyMigration(db) {
   await db.exec("begin");
   try {
     await db.exec(migration);
+    await db.exec(graceMigration);
     await db.exec("commit");
   } catch (error) {
     await db.exec("rollback");
@@ -244,7 +250,7 @@ test("backdated register_match replays forward and delete_match returns to the b
   assert.deepEqual(await matchEvents(db), beforeEvents);
 });
 
-test("pending rows do not count as activity; decay has 14-day grace and caps at 200", async (t) => {
+test("pending rows do not count as activity; decay has 30-day grace and caps at 200", async (t) => {
   const db = await createDatabase();
   t.after(() => db.close());
   await applyMigration(db);
@@ -259,18 +265,18 @@ test("pending rows do not count as activity; decay has 14-day grace and caps at 
 
   const { rows: decay } = await db.query(`
     select
-      public.inactivity_decay_points($1::date, $1::date + 14) as grace_end,
-      public.inactivity_decay_points($1::date, $1::date + 15) as first_point,
-      public.inactivity_decay_points($1::date, $1::date + 21) as one_week,
-      public.inactivity_decay_points($1::date, $1::date + 22) as second_week,
-      public.inactivity_decay_points($1::date, $1::date + 70) as cap,
+      public.inactivity_decay_points($1::date, $1::date + 30) as grace_end,
+      public.inactivity_decay_points($1::date, $1::date + 31) as first_point,
+      public.inactivity_decay_points($1::date, $1::date + 37) as one_week,
+      public.inactivity_decay_points($1::date, $1::date + 38) as second_week,
+      public.inactivity_decay_points($1::date, $1::date + 80) as cap,
       public.inactivity_decay_points($1::date, $1::date + 200) as capped
   `, [today[0].today]);
   assert.deepEqual(Object.values(decay[0]), [0, 25, 25, 50, 200, 200]);
 
   await db.query("update public.players set rating = base_rating, inactivity_penalty = 0");
   const { rows: changed } = await db.query(
-    "select public.apply_inactivity_decay(current_date + 9) as changed",
+    "select public.apply_inactivity_decay(current_date + 24) as changed",
   );
   assert.equal(changed[0].changed, 5);
   const { rows: player5 } = await db.query(
