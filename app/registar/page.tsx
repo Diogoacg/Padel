@@ -5,6 +5,7 @@ import type { FormEvent } from "react";
 import { useState } from "react";
 import { SkeletonBlock } from "@/app/components/LoadingSkeleton";
 import { useCreateMatch, usePlayers } from "@/lib/padel-queries";
+import { localDateString } from "@/lib/local-date";
 import MatchResultFields, { type ScoreDraft } from "@/app/components/MatchResultFields";
 import {
   averageRating,
@@ -25,7 +26,7 @@ type MatchForm = {
 const emptyForm = (): MatchForm => {
   const query = typeof window === "undefined" ? null : new URLSearchParams(window.location.search);
   return {
-  playedAt: new Date().toISOString().slice(0, 10),
+  playedAt: localDateString(),
   a1: query?.get("a1") ?? "",
   a2: query?.get("a2") ?? "",
   b1: query?.get("b1") ?? "",
@@ -63,7 +64,7 @@ export default function RegisterPage() {
       setError("Ainda faltam jogadores. Para um 2v2 precisamos de 4 nomes.");
       return;
     }
-    if (form.playedAt > new Date().toISOString().slice(0, 10)) {
+    if (form.playedAt > localDateString()) {
       setSuccess("");
       setError("Calma campeão, esse jogo ainda está no futuro.");
       return;
