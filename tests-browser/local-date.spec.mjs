@@ -3,7 +3,8 @@ import { test, expect } from '@playwright/test';
 test.use({ timezoneId: 'Europe/Lisbon' });
 
 const players = ['Ana', 'Bruno', 'Carla', 'Diogo'].map((name, index) => ({
-  id: `player-${index}`, name, rating: [1000, 1001, 1002, 1004][index], matches: 0, wins: 0,
+  id: `player-${index}`, name, rating: [1000, 1001, 1002, 1004][index],
+  base_rating: [1000, 1001, 1002, 1004][index], matches: 0, wins: 0,
   inactivity_penalty: 0, last_decay_at: null, created_at: '2026-01-01T00:00:00Z'
 }));
 

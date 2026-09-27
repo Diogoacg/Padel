@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 const players = ['Ana', 'Bruno', 'Carla', 'Diogo'].map((name, index) => ({
-  id: `player-${index}`, name, rating: [1000, 1001, 1002, 1004][index], matches: 0, wins: 0,
+  id: `player-${index}`, name, rating: [1000, 1001, 1002, 1004][index],
+  base_rating: [1000, 1001, 1002, 1004][index], matches: 0, wins: 0,
   inactivity_penalty: 0, last_decay_at: null, created_at: '2026-01-01T00:00:00Z'
 }));
 const match = {
@@ -18,7 +19,7 @@ async function selectTeams(page) {
   }
 }
 
-async function mockApi(page, { historyError = false, completed = false, failFirstMutation, listMatch = false } = {}) {
+async function mockApi(page, { historyError = false, completed = false, failFirstMutation, listMatch = false, playerRows = players } = {}) {
   const writes = [];
   let failedFirstMutation = false;
   let deleted = false;
@@ -30,7 +31,7 @@ async function mockApi(page, { historyError = false, completed = false, failFirs
     if (request.method() === 'OPTIONS') {
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
     }
-    if (resource === 'players') data = players;
+    if (resource === 'players') data = playerRows;
     if (resource === 'seasons') data = { id: 'season', name: 'Época teste', starts_at: '2026-01-01', ends_at: null, active: true };
     if (resource === 'matches') {
       if (historyError && !url.searchParams.has('id')) {
@@ -66,6 +67,23 @@ test('balanced draw works when history fails; random explains and blocks', async
   await page.getByRole('button', { name: 'Aleatório', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Sortear à sorte' })).toBeDisabled();
   await expect(page.getByRole('alert').first()).toBeVisible();
+});
+
+test('mobile draw uses both teams base Elo even with different ranking penalties', async ({ page }) => {
+  const playerRows = players.map((player, index) => ({
+    ...player,
+    base_rating: [1100, 900, 1050, 950][index],
+    rating: [900, 900, 1050, 950][index],
+    inactivity_penalty: index === 0 ? 200 : 0
+  }));
+  await mockApi(page, { playerRows });
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto('/sorteio');
+  for (const player of playerRows) await page.getByRole('button', { name: new RegExp(player.name) }).click();
+  await page.getByRole('button', { name: 'Gerar duplas' }).click();
+  await expect(page.locator('.drawGap')).toContainText('0');
+  await expect(page.getByText('1000 média de Elo base')).toHaveCount(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
 test('new result starts empty, accepts 2–1 and sends entered sets', async ({ page }) => {

@@ -92,7 +92,7 @@ export default function PlayerPage() {
             <div className="cardStats">
               <div>
                 <strong>{player.rating}</strong>
-                <span>RAT</span>
+                <span>ATUAL</span>
               </div>
               <div>
                 <strong>{winRate}%</strong>
@@ -116,15 +116,14 @@ export default function PlayerPage() {
               <MiniStat icon={<Trophy />} label="Vitórias" value={player.wins} />
               <MiniStat icon={<Swords />} label="Jogos" value={player.matches} />
               <MiniStat icon={<Flame />} label="Win rate" value={`${winRate}%`} />
-              <MiniStat icon={<Shield />} label="Rating" value={player.rating} />
-              {player.inactivityPenalty > 0 ? (
-                <MiniStat icon={<Flame />} label="Pausa" value={`-${player.inactivityPenalty}`} />
-              ) : null}
+              <MiniStat icon={<Shield />} label="Rating atual" value={player.rating} />
+              <MiniStat icon={<TrendingUp />} label="Elo base" value={player.baseRating ?? player.rating} />
+              <MiniStat icon={<Flame />} label="Penalização de inatividade" value={`-${player.inactivityPenalty}`} />
             </div>
 
             <div className="sectionTitle">
               <p className="eyebrow">Bolsa do padel</p>
-              <h2>Rating ao longo da época</h2>
+              <h2>Elo base ao longo da época</h2>
             </div>
 
             <RatingHistory history={ratingHistory} />
@@ -254,7 +253,7 @@ export default function PlayerPage() {
 
 function RatingHistory({ history }: { history: PlayerRatingHistoryPoint[] }) {
   if (history.length === 0) {
-    return <div className="emptyState">Ainda não há movimentos de rating nesta época.</div>;
+    return <div className="emptyState">Ainda não há jogos com alteração de Elo base nesta época.</div>;
   }
 
   const ratings = history.map((point) => point.ratingAfter);
@@ -279,7 +278,7 @@ function RatingHistory({ history }: { history: PlayerRatingHistoryPoint[] }) {
         <div>
           <ChartNoAxesColumnIncreasing size={18} aria-hidden="true" />
           <strong>{latest.ratingAfter}</strong>
-          <span>rating atual</span>
+          <span>Elo base no último jogo</span>
         </div>
         <em className={totalChange >= 0 ? "gain" : "loss"}>
           {totalChange >= 0 ? "+" : ""}
@@ -287,7 +286,7 @@ function RatingHistory({ history }: { history: PlayerRatingHistoryPoint[] }) {
         </em>
       </div>
 
-      <div className="ratingLineChart" aria-label="Evolução do rating">
+      <div className="ratingLineChart" aria-label="Evolução do Elo base">
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           <path className="ratingLineArea" d={`${linePath} L 100 100 L 0 100 Z`} />
           <path className="ratingLine" d={linePath} />
@@ -299,7 +298,7 @@ function RatingHistory({ history }: { history: PlayerRatingHistoryPoint[] }) {
               href={`/jogos/${point.matchId}`}
               key={point.matchId}
               style={{ left: `${point.x}%`, top: `${point.y}%` }}
-              title={`${new Date(point.playedAt).toLocaleDateString("pt-PT")} · ${point.ratingAfter}`}
+              title={`${new Date(point.playedAt).toLocaleDateString("pt-PT")} · Elo base ${point.ratingAfter}`}
             />
           ))}
         </div>
@@ -308,7 +307,7 @@ function RatingHistory({ history }: { history: PlayerRatingHistoryPoint[] }) {
       </div>
 
       <div className="ratingHistoryFooter">
-        <span>{history.length} jogos com rating</span>
+        <span>{history.length} jogos com Elo base</span>
         <span>
           {first.ratingBefore} → {latest.ratingAfter}
         </span>

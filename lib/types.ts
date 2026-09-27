@@ -2,6 +2,7 @@ export type PlayerRecord = {
   id: string;
   name: string;
   rating: number;
+  base_rating: number;
   matches: number;
   wins: number;
   inactivity_penalty: number;
@@ -52,6 +53,7 @@ export type HomeDashboardRecord = {
     id: string;
     name: string;
     rating: number;
+    baseRating?: number;
     matches: number;
     wins: number;
     inactivityPenalty: number;

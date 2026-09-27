@@ -2,7 +2,7 @@ import type { Match, Player, SetScore } from "@/lib/padel-data";
 
 export type MatchFormSets = [SetScore, SetScore, SetScore];
 
-const ELO_K = 24;
+const ELO_K = 32;
 
 export const ratingDelta = (
   winnerAverage: number,
@@ -16,7 +16,7 @@ export const ratingDelta = (
 
 export function averageRating(players: Player[], ids: string[]) {
   const selected = players.filter((player) => ids.includes(player.id));
-  return selected.reduce((sum, player) => sum + player.rating, 0) / selected.length;
+  return selected.reduce((sum, player) => sum + (player.baseRating ?? player.rating), 0) / selected.length;
 }
 
 export function setsLabel(sets: Match["sets"]) {
@@ -72,18 +72,5 @@ function marginMultiplier(sets: MatchFormSets, winnerSide: "a" | "b") {
   const winnerSets = playedSets.filter((set) =>
     winnerSide === "a" ? set.a > set.b : set.b > set.a
   );
-  const loserSets = playedSets.length - winnerSets.length;
-  const straightSets = winnerSets.length === 2 && loserSets === 0;
-  let multiplier = straightSets ? 1 : 0.85;
-
-  for (const set of winnerSets) {
-    const winnerGames = winnerSide === "a" ? set.a : set.b;
-    const loserGames = winnerSide === "a" ? set.b : set.a;
-    const gap = winnerGames - loserGames;
-
-    if (gap >= 4) multiplier += 0.05;
-    if (loserGames === 0) multiplier += 0.1;
-  }
-
-  return Math.min(1.3, multiplier);
+  return winnerSets.length === 2 && playedSets.length === 2 ? 1.1 : 0.9;
 }

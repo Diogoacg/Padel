@@ -154,7 +154,7 @@ export default function DrawPage() {
             }}
             type="button"
           >
-            Por rating
+            Por Elo base
           </button>
           <button
             className={mode === "random" ? "active" : ""}
@@ -168,6 +168,9 @@ export default function DrawPage() {
             Aleatório
           </button>
         </div>
+        <p className="drawHint">
+          O equilíbrio das equipas usa o Elo base, sem a penalização de inatividade. O ranking atual continua visível para contexto.
+        </p>
 
         <div className="drawStatus">
           <div>
@@ -197,8 +200,10 @@ export default function DrawPage() {
                   onClick={() => togglePlayer(player.id)}
                   type="button"
                 >
-                  <span>{player.name}</span>
-                  <strong>{player.rating}</strong>
+                  <span>
+                    {player.name}
+                  </span>
+                  <strong>Elo base {player.baseRating ?? player.rating} · ranking {player.rating}</strong>
                 </button>
               );
             })}
@@ -233,6 +238,7 @@ export default function DrawPage() {
             <DrawTeam title="Equipa A" players={draw.teamA} average={draw.averageA} />
             <DrawTeam title="Equipa B" players={draw.teamB} average={draw.averageB} />
           </div>
+          <p className="drawHint">Médias e diferença calculadas pelo Elo base dos jogadores, sem penalização de inatividade.</p>
 
           <button
             className="primary drawRegisterLink"
@@ -268,7 +274,7 @@ function DrawTeam({
       <span>{title}</span>
       <strong>{players[0].name}</strong>
       <strong>{players[1].name}</strong>
-      <em>{average} rating médio</em>
+      <em>{average} média de Elo base</em>
     </article>
   );
 }
