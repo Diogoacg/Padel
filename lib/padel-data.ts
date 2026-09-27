@@ -46,8 +46,8 @@ export type Season = {
   startsAt: string;
   endsAt: string | null;
   active: boolean;
-  semesterYear: number | null;
-  semesterHalf: number | null;
+  quarterYear: number;
+  quarterNumber: 1 | 2 | 3 | 4;
 };
 
 export type HomeDashboard = {
@@ -120,8 +120,8 @@ export const mapSeason = (record: SeasonRecord): Season => ({
   startsAt: record.starts_at,
   endsAt: record.ends_at,
   active: record.active,
-  semesterYear: record.semester_year,
-  semesterHalf: record.semester_half
+  quarterYear: record.quarter_year,
+  quarterNumber: record.quarter_number
 });
 
 export const mapHomeDashboard = (record: HomeDashboardRecord): HomeDashboard => ({
@@ -180,10 +180,20 @@ export const mapPlayerRatingHistoryPoint = (
 const matchSelect =
   "id, season_id, status, played_at, team_a_player_1, team_a_player_2, team_b_player_1, team_b_player_2, score_a, score_b, set_1_a, set_1_b, set_2_a, set_2_b, set_3_a, set_3_b, rating_delta, created_at";
 
-const seasonSelect = "id, name, starts_at, ends_at, active, semester_year, semester_half, created_at";
+const seasonSelect = "id, name, starts_at, ends_at, active, quarter_year, quarter_number, created_at";
+
+async function ensureCurrentSeasonId() {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.rpc("current_season_id").returns<string>();
+  if (error) throw new Error(error.message);
+  return data || null;
+}
 
 export async function getPlayers() {
   if (!supabase) return [];
+
+  await ensureCurrentSeasonId();
 
   const { data, error } = await supabase
     .from("players")
@@ -198,6 +208,8 @@ export async function getPlayers() {
 export async function getHomeDashboard(seasonId?: string | null) {
   if (!supabase) return null;
 
+  if (!seasonId) await ensureCurrentSeasonId();
+
   const { data, error } = await supabase
     .rpc("home_dashboard", {
       p_season_id: seasonId ?? null
@@ -210,6 +222,8 @@ export async function getHomeDashboard(seasonId?: string | null) {
 
 export async function getSeasonStandings(seasonId: string) {
   if (!supabase) return [];
+
+  await ensureCurrentSeasonId();
 
   const { data, error } = await supabase
     .rpc("season_player_standings", {
@@ -241,6 +255,8 @@ export async function getSeasonStandings(seasonId: string) {
 export async function getPlayer(id: string) {
   if (!supabase) return null;
 
+  await ensureCurrentSeasonId();
+
   const { data, error } = await supabase
     .from("players")
     .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, inactivity_forfeit, last_decay_at, created_at")
@@ -253,6 +269,8 @@ export async function getPlayer(id: string) {
 
 export async function getPlayerRatingHistory(playerId: string, seasonId?: string | null) {
   if (!supabase) return [];
+
+  await ensureCurrentSeasonId();
 
   const { data, error } = await supabase
     .rpc("player_rating_history", {
@@ -285,6 +303,8 @@ export async function getMatches(seasonId?: string | null) {
 export async function getSeasons() {
   if (!supabase) return [];
 
+  await ensureCurrentSeasonId();
+
   const { data, error } = await supabase
     .from("seasons")
     .select(seasonSelect)
@@ -298,12 +318,13 @@ export async function getSeasons() {
 export async function getActiveSeason() {
   if (!supabase) return null;
 
+  const seasonId = await ensureCurrentSeasonId();
+  if (!seasonId) return null;
+
   const { data, error } = await supabase
     .from("seasons")
     .select(seasonSelect)
-    .eq("active", true)
-    .order("created_at", { ascending: false })
-    .limit(1)
+    .eq("id", seasonId)
     .maybeSingle<SeasonRecord>();
 
   if (error) throw new Error(error.message);
@@ -420,52 +441,6 @@ export async function updateMatch(id: string, match: CompletedMatchInput) {
     throw new Error("O Supabase nao devolveu o jogo corrigido.");
   }
   return mapMatch(data as MatchRecord);
-}
-
-export async function startNewSeason(name: string) {
-  if (!supabase) throw new Error("Supabase nao esta configurado.");
-
-  const { data, error } = await supabase
-    .rpc("start_new_season", {
-      p_name: name,
-      p_starts_at: localDateString()
-    })
-    .returns<SeasonRecord>();
-
-  if (error) throw new Error(error.message);
-  if (!data || "Error" in data) {
-    throw new Error("O Supabase nao criou a epoca.");
-  }
-  return mapSeason(data as SeasonRecord);
-}
-
-export async function switchActiveSeason(id: string) {
-  if (!supabase) throw new Error("Supabase nao esta configurado.");
-
-  const { data, error } = await supabase
-    .rpc("switch_active_season", {
-      p_season_id: id
-    })
-    .returns<SeasonRecord>();
-
-  if (error) throw new Error(error.message);
-  if (!data || "Error" in data) {
-    throw new Error("O Supabase nao mudou a epoca.");
-  }
-  return mapSeason(data as SeasonRecord);
-}
-
-export async function deleteSeason(id: string) {
-  if (!supabase) throw new Error("Supabase nao esta configurado.");
-
-  const { data, error } = await supabase
-    .rpc("delete_season", {
-      p_season_id: id
-    })
-    .returns<string>();
-
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("O Supabase nao apagou a epoca.");
 }
 
 export async function applyInactivityDecay(): Promise<number> {

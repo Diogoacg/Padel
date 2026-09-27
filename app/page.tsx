@@ -5,15 +5,19 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { CardSkeletonGrid, ListSkeleton, MetricSkeletons } from "@/app/components/LoadingSkeleton";
-import { useHomeDashboard, usePrefetchPlayer } from "@/lib/padel-queries";
+import { useActiveSeason, useHomeDashboard, usePrefetchPlayer } from "@/lib/padel-queries";
 
 export default function Home() {
   const [showAlgorithm, setShowAlgorithm] = useState(false);
-  const dashboardQuery = useHomeDashboard();
+  const activeSeasonQuery = useActiveSeason();
+  const dashboardQuery = useHomeDashboard(
+    activeSeasonQuery.data?.id,
+    activeSeasonQuery.isSuccess && Boolean(activeSeasonQuery.data?.id)
+  );
   const prefetchPlayer = usePrefetchPlayer();
   const dashboard = dashboardQuery.data ?? null;
   const topPlayer = dashboard?.topPlayers[0];
-  const loading = dashboardQuery.isLoading;
+  const loading = activeSeasonQuery.isLoading || dashboardQuery.isLoading;
 
   return (
     <main className="shell appShell">

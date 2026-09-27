@@ -32,7 +32,12 @@ async function mockApi(page, { historyError = false, completed = false, failFirs
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
     }
     if (resource === 'players') data = playerRows;
-    if (resource === 'seasons') data = { id: 'season', name: 'Época teste', starts_at: '2026-01-01', ends_at: null, active: true };
+    if (resource === 'current_season_id') data = 'season';
+    if (resource === 'seasons') {
+      const season = { id: 'season', name: '2026 T3', starts_at: '2026-07-01', ends_at: '2026-09-30', active: true, quarter_year: 2026, quarter_number: 3 };
+      data = request.headers().accept?.includes('application/vnd.pgrst.object+json') ? season : [season];
+    }
+    if (resource === 'season_player_standings') data = playerRows.map(({ id, name, rating, matches, wins }) => ({ player_id: id, name, rating, matches, wins }));
     if (resource === 'matches') {
       if (historyError && !url.searchParams.has('id')) {
         return route.fulfill({ status: 500, json: { message: 'Histórico indisponível' } });
@@ -83,6 +88,16 @@ test('mobile draw uses both teams base Elo even with different ranking penalties
   await page.getByRole('button', { name: 'Gerar duplas' }).click();
   await expect(page.locator('.drawGap')).toContainText('0');
   await expect(page.getByText('1000 média de Elo base')).toHaveCount(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('quarterly ranking displays the current quarter on a narrow screen', async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto('/jogadores');
+  await expect(page.getByText('2026 T3')).toBeVisible();
+  await expect(page.getByText(/01\/07\/2026.*30\/09\/2026/)).toBeVisible();
+  await expect(page.locator('.playerRow')).toHaveCount(4);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

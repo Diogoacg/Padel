@@ -38,8 +38,8 @@ export type SeasonRecord = {
   starts_at: string;
   ends_at: string | null;
   active: boolean;
-  semester_year: number | null;
-  semester_half: number | null;
+  quarter_year: number;
+  quarter_number: 1 | 2 | 3 | 4;
   created_at: string;
 };
 

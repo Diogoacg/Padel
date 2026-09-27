@@ -1,6 +1,6 @@
 "use client";
 
-import { Info, Plus, Trash2 } from "lucide-react";
+import { Info, Plus } from "lucide-react";
 import Link from "next/link";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -8,8 +8,6 @@ import { ListSkeleton } from "@/app/components/LoadingSkeleton";
 import {
   useActiveSeason,
   useCreatePlayer,
-  useDeleteSeason,
-  usePlayers,
   usePrefetchPlayer,
   useSeasons,
   useSeasonStandings
@@ -18,41 +16,35 @@ import type { Player } from "@/lib/padel-data";
 
 export default function PlayersPage() {
   const [newPlayer, setNewPlayer] = useState("");
-  const [selectedSeasonId, setSelectedSeasonId] = useState("");
-  const [viewedSeasonId, setViewedSeasonId] = useState("");
+  const [selectedSeason, setSelectedSeason] = useState<{ activeSeasonId: string | null; id: string }>({ activeSeasonId: null, id: "" });
+  const [viewedSeason, setViewedSeason] = useState<{ activeSeasonId: string | null; id: string }>({ activeSeasonId: null, id: "" });
   const [showAlgorithm, setShowAlgorithm] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const playersQuery = usePlayers();
   const activeSeasonQuery = useActiveSeason();
   const seasonsQuery = useSeasons();
   const createPlayerMutation = useCreatePlayer();
-  const deleteSeasonMutation = useDeleteSeason();
   const prefetchPlayer = usePrefetchPlayer();
   const activeSeason = activeSeasonQuery.data ?? null;
   const seasons = useMemo(() => seasonsQuery.data ?? [], [seasonsQuery.data]);
-  const effectiveSelectedSeasonId = selectedSeasonId || activeSeason?.id || seasons[0]?.id || "";
-  const effectiveViewedSeasonId = viewedSeasonId || activeSeason?.id || seasons[0]?.id || "";
-  const standingsQuery = useSeasonStandings(
-    effectiveViewedSeasonId,
-    Boolean(effectiveViewedSeasonId && effectiveViewedSeasonId !== activeSeason?.id)
-  );
-  const players: Player[] = useMemo(
-    () => effectiveViewedSeasonId && effectiveViewedSeasonId !== activeSeason?.id
-      ? standingsQuery.data ?? []
-      : playersQuery.data ?? [],
-    [activeSeason?.id, effectiveViewedSeasonId, playersQuery.data, standingsQuery.data]
-  );
+  const activeSeasonId = activeSeason?.id ?? null;
+  const effectiveSelectedSeasonId = selectedSeason.activeSeasonId === activeSeasonId && selectedSeason.id
+    ? selectedSeason.id
+    : activeSeason?.id || seasons[0]?.id || "";
+  const effectiveViewedSeasonId = viewedSeason.activeSeasonId === activeSeasonId && viewedSeason.id
+    ? viewedSeason.id
+    : activeSeason?.id || seasons[0]?.id || "";
+  const standingsQuery = useSeasonStandings(effectiveViewedSeasonId, Boolean(effectiveViewedSeasonId));
+  const players: Player[] = useMemo(() => standingsQuery.data ?? [], [standingsQuery.data]);
   const loading =
-    playersQuery.isLoading ||
     activeSeasonQuery.isLoading ||
     seasonsQuery.isLoading ||
     standingsQuery.isLoading;
   const saving = createPlayerMutation.isPending;
-  const seasonSaving = deleteSeasonMutation.isPending || standingsQuery.isFetching;
+  const seasonSaving = standingsQuery.isFetching;
 
   const queryError =
-    playersQuery.error ?? activeSeasonQuery.error ?? seasonsQuery.error ?? standingsQuery.error;
+    activeSeasonQuery.error ?? seasonsQuery.error ?? standingsQuery.error;
   const displayError = error || (queryError instanceof Error ? queryError.message : queryError ? "Nao consegui carregar a malta." : "");
 
   const rankedPlayers = useMemo(
@@ -76,37 +68,16 @@ export default function PlayersPage() {
   };
 
   const viewSeason = async () => {
-    const seasonId = selectedSeasonId || effectiveSelectedSeasonId;
+    const seasonId = effectiveSelectedSeasonId;
     if (!seasonId) return;
 
     try {
       setError("");
       const selectedSeason = seasons.find((season) => season.id === seasonId);
-      setViewedSeasonId(seasonId);
+      setViewedSeason({ activeSeasonId, id: seasonId });
       setSuccess(selectedSeason ? `A ver ranking de ${selectedSeason.name}.` : "");
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : "Nao consegui abrir essa epoca.");
-    }
-  };
-
-  const removeSeason = async () => {
-    const seasonId = selectedSeasonId;
-    const season = seasons.find((item) => item.id === seasonId);
-    if (!season) return;
-
-    if (!window.confirm(`Apagar ${season.name}? Os jogos ficam sem época.`)) return;
-
-    try {
-      setError("");
-      await deleteSeasonMutation.mutateAsync(seasonId);
-      const nextSeasonId = activeSeason?.id !== seasonId
-        ? activeSeason?.id ?? seasons.find((item) => item.id !== seasonId)?.id ?? ""
-        : seasons.find((item) => item.id !== seasonId)?.id ?? "";
-      setSelectedSeasonId(nextSeasonId);
-      setViewedSeasonId(nextSeasonId);
-      setSuccess(`${season.name} foi apagada.`);
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Nao consegui apagar a epoca.");
     }
   };
 
@@ -138,9 +109,12 @@ export default function PlayersPage() {
         {showAlgorithm ? (
           <div className="algorithmNote">
             Elo por equipas: todos começam em 1000, calcula-se a média das duas
-            duplas e o delta vem da dificuldade esperada. Um 2-1 vale menos, um
-            2-0 vale normal, e diferenças grandes ou pneus dão bónus até 1.30x.
-            Depois de 21 dias parado, levas -3 por semana até -60.
+            duplas e o delta vem da dificuldade esperada. Um 2-1 multiplica o
+            delta por 0,90 e um 2-0 por 1,40. Depois de 30 dias sem jogar,
+            perdes temporariamente 25 pontos por semana iniciada, até 200.
+            Se regressares após 60 dias, parte dessa penalização passa a perda
+            permanente: 10%, mais 10 pontos percentuais por semana iniciada,
+            até 50%. Cada trimestre recomeça em 1000.
           </div>
         ) : null}
 
@@ -151,14 +125,18 @@ export default function PlayersPage() {
           <div>
             <span>Época ativa</span>
             <strong>{activeSeason?.name ?? "Ainda sem época"}</strong>
-            <small>As épocas são semestrais: S1 é Jan-Jun, S2 é Jul-Dez.</small>
+            <small>
+              {activeSeason
+                ? `Válida de ${new Date(`${activeSeason.startsAt}T12:00:00`).toLocaleDateString("pt-PT")} a ${activeSeason.endsAt ? new Date(`${activeSeason.endsAt}T12:00:00`).toLocaleDateString("pt-PT") : "sem data final"}.`
+                : "Cada época dura três meses e começa no primeiro dia do trimestre."}
+            </small>
           </div>
           {seasons.length > 1 ? (
             <div className="seasonForm seasonManageForm">
               <select
                 aria-label="Escolher época antiga"
                 name="seasonId"
-                onChange={(event) => setSelectedSeasonId(event.target.value)}
+                onChange={(event) => setSelectedSeason({ activeSeasonId, id: event.target.value })}
                 value={effectiveSelectedSeasonId}
               >
                 {seasons.map((season) => (
@@ -169,15 +147,6 @@ export default function PlayersPage() {
               </select>
               <button disabled={seasonSaving} onClick={() => void viewSeason()} type="button">
                 Ver
-              </button>
-              <button
-                className="dangerIconButton"
-                disabled={seasonSaving}
-                onClick={() => void removeSeason()}
-                title="Apagar época"
-                type="button"
-              >
-                <Trash2 size={16} aria-hidden="true" />
               </button>
             </div>
           ) : null}
