@@ -16,6 +16,10 @@ const longAbsenceMigration = readFileSync(
   new URL("../supabase/migrations/20260927_elo_long_absence_forfeit.sql", import.meta.url),
   "utf8",
 );
+const straightSetsMigration = readFileSync(
+  new URL("../supabase/migrations/20260927_elo_straight_sets_140.sql", import.meta.url),
+  "utf8",
+);
 
 const ids = [
   "00000000-0000-4000-8000-000000000001",
@@ -163,6 +167,7 @@ async function applyMigration(db) {
     await db.exec(migration);
     await db.exec(graceMigration);
     await db.exec(longAbsenceMigration);
+    await db.exec(straightSetsMigration);
     await db.exec("commit");
   } catch (error) {
     await db.exec("rollback");
@@ -193,6 +198,16 @@ test("replays completed matches, snapshots the old state, and is idempotent", as
   const firstPassPlayers = await readPlayers(db);
   const firstPassEvents = await matchEvents(db);
   assert.equal(firstPassEvents.length, 8, "only two completed matches should be replayed");
+  const { rows: firstDeltas } = await db.query(
+    "select rating_delta from public.matches where id = $1", [firstMatchId],
+  );
+  assert.equal(firstDeltas[0].rating_delta, 22, "2-0 between equal teams uses K=32 and 1.40");
+  const { rows: marginFactors } = await db.query(`
+    select public.rating_margin_multiplier('a', 6, 3, 6, 4, 0, 0) as straight_a,
+      public.rating_margin_multiplier('b', 3, 6, 4, 6, 0, 0) as straight_b,
+      public.rating_margin_multiplier('a', 6, 3, 3, 6, 6, 4) as deciding
+  `);
+  assert.deepEqual(Object.values(marginFactors[0]).map(Number), [1.4, 1.4, 0.9]);
   assert.deepEqual(firstPassPlayers.map((p) => [p.matches, p.wins]), [
     [2, 1], [2, 1], [2, 1], [2, 1], [0, 0],
   ]);
@@ -230,6 +245,12 @@ test("replays completed matches, snapshots the old state, and is idempotent", as
     match_count: 3,
     event_count: 8,
     first_saved_rating: "1002",
+  }, {
+    algorithm: "elo-straight-140-20260927",
+    player_count: 5,
+    match_count: 3,
+    event_count: 8,
+    first_saved_rating: "1002",
   }]);
 
   await applyMigration(db);
@@ -238,7 +259,7 @@ test("replays completed matches, snapshots the old state, and is idempotent", as
   const { rows: snapshots } = await db.query(
     "select count(*)::integer as count from padel_internal.rating_snapshots",
   );
-  assert.equal(snapshots[0].count, 2);
+  assert.equal(snapshots[0].count, 3);
 });
 
 test("backdated register_match replays forward and delete_match returns to the baseline", async (t) => {

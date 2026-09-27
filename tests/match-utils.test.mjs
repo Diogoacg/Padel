@@ -31,8 +31,9 @@ test("team averages use base rating, independent of inactivity decay", () => {
   assert.equal(averageRating(players, ["b1", "b2"]), 1200);
 });
 
-test("Elo uses K=32, with 1.10 for 2-0 and 0.90 for 2-1", () => {
-  assert.equal(ratingDelta(1000, 1000, sets([6, 4], [6, 4]), "a"), 18);
+test("Elo uses K=32, with 1.40 for 2-0 and 0.90 for 2-1", () => {
+  assert.equal(ratingDelta(1000, 1000, sets([6, 4], [6, 4]), "a"), 22);
+  assert.equal(ratingDelta(1000, 1000, sets([4, 6], [4, 6]), "b"), 22);
   assert.equal(ratingDelta(1000, 1000, sets([6, 4], [3, 6], [6, 4]), "a"), 14);
 });
 
@@ -40,7 +41,7 @@ test("upset deltas reflect different team averages and winning margin", () => {
   const straightUpset = ratingDelta(1000, 1400, sets([6, 4], [6, 4]), "a");
   const straightFavorite = ratingDelta(1400, 1000, sets([6, 4], [6, 4]), "a");
   const closeUpset = ratingDelta(1000, 1400, sets([6, 4], [3, 6], [6, 4]), "a");
-  assert.equal(straightUpset, 32);
-  assert.equal(straightFavorite, 3);
+  assert.equal(straightUpset, 41);
+  assert.equal(straightFavorite, 4);
   assert.equal(closeUpset, 26);
 });
