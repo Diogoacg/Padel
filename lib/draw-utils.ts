@@ -18,7 +18,7 @@ function validatePlayers(players: Player[]) {
   if (new Set(ids).size !== 4) {
     throw new Error("Os 4 jogadores têm de ser distintos.");
   }
-  if (players.some((player) => !Number.isFinite(player.rating))) {
+  if (players.some((player) => !Number.isFinite(player.baseRating ?? player.rating))) {
     throw new Error("Todos os jogadores têm de ter um rating válido.");
   }
 }
@@ -89,5 +89,5 @@ function pairingKey(teamA: [Player, Player], teamB: [Player, Player]) {
 }
 
 function teamAverage(players: [Player, Player]) {
-  return (players[0].rating + players[1].rating) / 2;
+  return ((players[0].baseRating ?? players[0].rating) + (players[1].baseRating ?? players[1].rating)) / 2;
 }

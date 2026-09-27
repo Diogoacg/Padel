@@ -10,6 +10,7 @@ import {
 const players = [1000, 1001, 1002, 1004].map((rating, i) => ({
   id: `p${i + 1}`,
   name: `Jogador ${i + 1}`,
+  baseRating: rating,
   rating,
   matches: 0,
   wins: 0,
@@ -31,6 +32,19 @@ const matchFor = (teamA, teamB, playedAt, status = "completed") => ({
   ratingDelta: 10,
 });
 
+test("balanced draw uses base ratings regardless of display decay", () => {
+  const decayedPlayers = [
+    { ...players[0], baseRating: 1000, rating: 600 },
+    { ...players[1], baseRating: 1100, rating: 900 },
+    { ...players[2], baseRating: 1300, rating: 1300 },
+    { ...players[3], baseRating: 1400, rating: 1000 },
+  ];
+  const draw = buildBalancedDraw(decayedPlayers);
+  assert.equal(draw.averageA, 1200);
+  assert.equal(draw.averageB, 1200);
+  assert.equal(draw.gap, 0);
+});
+
 test("balanced draw uses exact averages and chooses the .5 gap", () => {
   const draw = buildBalancedDraw(players);
   assert.equal(draw.averageA, 1002);
@@ -42,7 +56,7 @@ test("balanced draw uses exact averages and chooses the .5 gap", () => {
 test("draw validation rejects wrong cardinality, duplicate ids, and non-finite ratings", () => {
   assert.throws(() => buildBalancedDraw(players.slice(0, 3)));
   assert.throws(() => buildBalancedDraw([players[0], players[1], players[2], players[0]]));
-  assert.throws(() => buildBalancedDraw([...players.slice(0, 3), { ...players[3], rating: Number.NaN }]));
+  assert.throws(() => buildBalancedDraw([...players.slice(0, 3), { ...players[3], baseRating: Number.NaN }]));
 });
 
 test("random draw can select all three pairings", () => {

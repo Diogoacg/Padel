@@ -860,10 +860,13 @@ h2 {
 }
 
 .playerPick {
+  align-items: center;
   background: #fffaf0;
   border: 1px solid var(--line);
   color: var(--ink);
-  display: flex;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
   justify-content: space-between;
   min-height: 56px;
   text-align: left;
@@ -888,6 +891,8 @@ h2 {
 
 .playerPick strong {
   color: var(--clay);
+  font-size: 0.78rem;
+  text-align: right;
 }
 
 .playerPick.selected strong {

@@ -11,6 +11,7 @@ import type {
 export type Player = {
   id: string;
   name: string;
+  baseRating?: number;
   rating: number;
   matches: number;
   wins: number;
@@ -83,16 +84,10 @@ export type PlayerRatingHistoryPoint = {
   scoreLabel: string;
 };
 
-export type PlayerUpdate = {
-  id: string;
-  rating: number;
-  matches: number;
-  wins: number;
-};
-
 export const mapPlayer = (record: PlayerRecord): Player => ({
   id: record.id,
   name: record.name,
+  baseRating: record.base_rating,
   rating: record.rating,
   matches: record.matches,
   wins: record.wins,
@@ -137,6 +132,7 @@ export const mapHomeDashboard = (record: HomeDashboardRecord): HomeDashboard => 
   topPlayers: record.top_players.map((player) => ({
     id: player.id,
     name: player.name,
+    baseRating: player.baseRating ?? player.rating + player.inactivityPenalty,
     rating: player.rating,
     matches: player.matches,
     wins: player.wins,
@@ -188,7 +184,7 @@ export async function getPlayers() {
 
   const { data, error } = await supabase
     .from("players")
-    .select("id, name, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
+    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
     .order("rating", { ascending: false })
     .returns<PlayerRecord[]>();
 
@@ -243,7 +239,7 @@ export async function getPlayer(id: string) {
 
   const { data, error } = await supabase
     .from("players")
-    .select("id, name, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
+    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
     .eq("id", id)
     .single<PlayerRecord>();
 
@@ -332,7 +328,7 @@ export async function createPlayer(name: string) {
   const { data, error } = await supabase
     .from("players")
     .insert({ name })
-    .select("id, name, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
+    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
     .single<PlayerRecord>();
 
   if (error) throw new Error(error.message);
@@ -490,52 +486,4 @@ export async function deleteMatch(id: string) {
 
   if (error) throw new Error(error.message);
   if (!data) throw new Error("O Supabase nao apagou o jogo.");
-}
-
-export async function updatePlayers(updates: PlayerUpdate[]) {
-  if (!supabase) throw new Error("Supabase nao esta configurado.");
-  const client = supabase;
-
-  const results = await Promise.all(
-    updates.map((player) =>
-      client
-        .from("players")
-        .update({
-          rating: player.rating,
-          matches: player.matches,
-          wins: player.wins
-        })
-        .eq("id", player.id)
-    )
-  );
-
-  const failed = results.find((result) => result.error);
-  if (failed?.error) throw new Error(failed.error.message);
-}
-
-export function revertMatchStats(players: Player[], match: Match) {
-  const teamAWon = match.scoreA > match.scoreB;
-  const winners = teamAWon ? match.teamA : match.teamB;
-  const losers = teamAWon ? match.teamB : match.teamA;
-
-  return players.map((player) => {
-    if (winners.includes(player.id)) {
-      return {
-        ...player,
-        rating: Math.max(0, player.rating - match.ratingDelta),
-        matches: Math.max(0, player.matches - 1),
-        wins: Math.max(0, player.wins - 1)
-      };
-    }
-
-    if (losers.includes(player.id)) {
-      return {
-        ...player,
-        rating: player.rating + match.ratingDelta,
-        matches: Math.max(0, player.matches - 1)
-      };
-    }
-
-    return player;
-  });
 }
