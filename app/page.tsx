@@ -122,6 +122,9 @@ export default function Home() {
           <ListSkeleton rows={5} />
         ) : (
           <div className="playerList">
+            {dashboard && dashboard.topPlayers.length === 0 ? (
+              <p className="emptyState">O ranking começa depois do primeiro jogo da época.</p>
+            ) : null}
             {(dashboard?.topPlayers ?? []).map((player, index) => (
               <Link
                 className="playerRow playerLink"
