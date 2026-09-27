@@ -62,6 +62,7 @@ test('register uses Lisbon local date and rejects tomorrow', async ({ page }) =>
   await selectTeams(page);
   await enterValidResult(page);
   await page.getByRole('button', { name: 'Fechar resultado', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('Resultado guardado. Ranking atualizado sem dramas.');
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0]).toMatchObject({ resource: 'register_match', payload: { p_played_at: '2026-09-20' } });
 
