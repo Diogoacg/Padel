@@ -169,6 +169,9 @@ export default function PlayersPage() {
           <ListSkeleton rows={6} />
         ) : (
           <div className="playerList">
+            {rankedPlayers.length === 0 ? (
+              <p className="emptyState">Ainda ninguém jogou nesta época. Regista o primeiro jogo para começar o ranking.</p>
+            ) : null}
             {rankedPlayers.map((player, index) => (
               <Link
                 className="playerRow playerLink"

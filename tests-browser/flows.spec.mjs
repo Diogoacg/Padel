@@ -38,6 +38,17 @@ async function mockApi(page, { historyError = false, completed = false, failFirs
       data = request.headers().accept?.includes('application/vnd.pgrst.object+json') ? season : [season];
     }
     if (resource === 'season_player_standings') data = playerRows.map(({ id, name, rating, matches, wins }) => ({ player_id: id, name, rating, matches, wins }));
+    if (resource === 'home_dashboard') data = {
+      season_id: 'season', season_name: '2026 T3', total_players: playerRows.length,
+      total_matches: 10, average_rating: 1000, inactive_players: 0,
+      top_players: [...playerRows].sort((a, b) => b.rating - a.rating).slice(0, 5).map((player) => ({
+        id: player.id, name: player.name, rating: player.rating,
+        matches: player.matches, wins: player.wins, inactivityPenalty: 0, lastDecayAt: null
+      })),
+      best_duo_label: null, best_duo_wins: 0, best_duo_matches: 0,
+      biggest_upset_label: null, biggest_upset_gap: null,
+      closest_match_label: null, closest_match_sets: null
+    };
     if (resource === 'matches') {
       if (historyError && !url.searchParams.has('id')) {
         return route.fulfill({ status: 500, json: { message: 'Histórico indisponível' } });
@@ -92,12 +103,41 @@ test('mobile draw uses both teams base Elo even with different ranking penalties
 });
 
 test('quarterly ranking displays the current quarter on a narrow screen', async ({ page }) => {
-  await mockApi(page);
+  const playerRows = players.map((player, index) => ({
+    ...player, matches: index < 2 ? 1 : 0, wins: index === 0 ? 1 : 0
+  }));
+  await mockApi(page, { playerRows });
   await page.setViewportSize({ width: 320, height: 740 });
   await page.goto('/jogadores');
   await expect(page.getByText('2026 T3')).toBeVisible();
   await expect(page.getByText(/01\/07\/2026.*30\/09\/2026/)).toBeVisible();
-  await expect(page.locator('.playerRow')).toHaveCount(4);
+  await expect(page.locator('.playerRow')).toHaveCount(2);
+  await expect(page.getByText('0 jogos')).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('empty quarter has no ranked players but still offers player registration', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/jogadores');
+  await expect(page.locator('.playerRow')).toHaveCount(0);
+  await expect(page.getByText('Ainda ninguém jogou nesta época.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Juntar' })).toBeVisible();
+});
+
+test('home ranking fills all five places with players who have matches', async ({ page }) => {
+  const playerRows = [
+    ...players.slice(0, 2).map((player) => ({ ...player, rating: 1000, matches: 0 })),
+    ...['Eva', 'Filipe', 'Gabi', 'Hugo', 'Inês'].map((name, index) => ({
+      ...players[0], id: `ranked-${index}`, name,
+      rating: [1050, 1030, 970, 960, 950][index], matches: 2, wins: index < 2 ? 2 : 0
+    }))
+  ];
+  await mockApi(page, { playerRows });
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto('/');
+  await expect(page.locator('.playerRow')).toHaveCount(5);
+  await expect(page.locator('.playerRow').last()).toContainText('Inês');
+  await expect(page.getByText('0 jogos')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 

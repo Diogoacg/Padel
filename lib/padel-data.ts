@@ -208,7 +208,7 @@ export async function getPlayers() {
 export async function getHomeDashboard(seasonId?: string | null) {
   if (!supabase) return null;
 
-  if (!seasonId) await ensureCurrentSeasonId();
+  const activeSeasonId = await ensureCurrentSeasonId();
 
   const { data, error } = await supabase
     .rpc("home_dashboard", {
@@ -217,7 +217,19 @@ export async function getHomeDashboard(seasonId?: string | null) {
     .maybeSingle<HomeDashboardRecord>();
 
   if (error) throw new Error(error.message);
-  return data ? mapHomeDashboard(data) : null;
+  if (!data) return null;
+
+  const dashboard = mapHomeDashboard(data);
+  const participants = seasonId && seasonId !== activeSeasonId
+    ? await getSeasonStandings(seasonId)
+    : (await getPlayers()).filter((player) => player.matches > 0);
+
+  return {
+    ...dashboard,
+    topPlayers: [...participants]
+      .sort((a, b) => b.rating - a.rating || b.wins - a.wins || a.name.localeCompare(b.name, "pt"))
+      .slice(0, 5)
+  };
 }
 
 export async function getSeasonStandings(seasonId: string) {
@@ -240,7 +252,7 @@ export async function getSeasonStandings(seasonId: string) {
   if (error) throw new Error(error.message);
   if (!Array.isArray(data)) return [];
 
-  return data.map((record) => ({
+  return data.filter((record) => record.matches > 0).map((record) => ({
     id: record.player_id,
     name: record.name,
     rating: record.rating,
