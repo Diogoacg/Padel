@@ -27,11 +27,13 @@ Usar o dia civil do utilizador sempre que a aplicação quer dizer “hoje”. A
 - `npm run lint`: passou.
 - `npm run build`: passou, incluindo TypeScript e geração das páginas.
 - `git diff --check`: passou.
-- A suite E2E local não arrancou: o binário Chromium temporário terminou com `SIGSEGV` e a transferência oficial do Playwright devolveu um arquivo vazio/truncado. Os testes foram descobertos por `playwright test --list`; o resultado do GitHub Actions deve ser usado como verificação E2E desta revisão.
-- [GitHub Actions — Quality #4](https://github.com/Diogoacg/Padel/actions/runs/36272256417): passou em Ubuntu/Node 24, incluindo instalação do Chromium e os 13 testes E2E.
+- A primeira execução da nova PR no `master` passou unit tests, lint e build, mas revelou uma corrida no teste E2E de registo (12/13). O teste agora espera pelo estado de sucesso da primeira gravação antes de validar a rejeição da data futura.
+- [GitHub Actions — Quality #7](https://github.com/Diogoacg/Padel/actions/runs/36283246713): passou em Ubuntu/Node 24, incluindo instalação do Chromium e os 13 testes E2E.
+- A execução E2E local continua indisponível: o processo local do Next/Turbopack falhou ao arrancar com um erro interno. A verificação E2E autoritativa foi feita pelo runner GitHub.
+- A correção anterior tinha sido integrada na branch de uma PR já fechada, não no `master`; esta reaplicação foi aberta diretamente sobre `master` na [PR #4](https://github.com/Diogoacg/Padel/pull/4).
 
 Não foram executadas RPCs reais nem feitas alterações à base de dados. Os testes de navegador simulam o Supabase.
 
 ## Próximo passo
 
-Depois de integrar a PR #2, mudar a base desta PR para `master` se o GitHub não a atualizar automaticamente. Validar as RPCs numa base de staging autorizada e considerar um teste de data para a criação de época e inatividade.
+Após revisão e integração da PR #4, validar as RPCs numa base de staging autorizada e considerar um teste de data para a criação de época e inatividade.
