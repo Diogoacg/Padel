@@ -119,6 +119,7 @@ export default function PlayerPage() {
               <MiniStat icon={<Shield />} label="Rating atual" value={player.rating} />
               <MiniStat icon={<TrendingUp />} label="Elo base" value={player.baseRating ?? player.rating} />
               <MiniStat icon={<Flame />} label="Penalização de inatividade" value={`-${player.inactivityPenalty}`} />
+              <MiniStat icon={<TrendingDown />} label="Perda permanente por inatividade" value={`-${player.inactivityForfeit}`} />
             </div>
 
             <div className="sectionTitle">

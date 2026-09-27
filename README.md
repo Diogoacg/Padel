@@ -34,7 +34,7 @@ O diário de decisões e verificações está em [docs/iterations](docs/iteratio
 3. Copia `.env.example` para `.env.local`.
 4. Preenche `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
 
-A aplicação usa o Supabase para persistir jogadores, jogos (incluindo jogos pendentes) e eventos de rating. O ranking atual inclui a penalização de inatividade (após 30 dias completos sem jogo concluído, 25 pontos por semana iniciada, até 200); o Elo base acompanha os resultados sem essa penalização. O histórico de jogos mostra alterações ao Elo base, e o sorteio equilibrado calcula as médias das equipas com o Elo base. As queries e mutações estão centralizadas em `lib/padel-queries.ts` e `lib/padel-data.ts`; configura as variáveis de ambiente antes de arrancar.
+A aplicação usa o Supabase para persistir jogadores, jogos (incluindo jogos pendentes) e eventos de rating. O ranking atual inclui uma penalização temporária de inatividade após 30 dias completos sem jogo concluído: 25 pontos por semana iniciada, até 200. Ao regressar depois de mais de 60 dias sem jogar, uma parte dessa penalização passa a perda permanente de Elo base antes do jogo seguinte: 10% no dia 61, mais 10 pontos percentuais por cada período de 7 dias iniciado após o dia 60, até 50% a partir do dia 89. A penalização temporária restante é removida normalmente; o perfil do jogador mostra os pontos perdidos permanentemente. O histórico de jogos mostra alterações ao Elo base, e o sorteio equilibrado calcula as médias das equipas com o Elo base. As queries e mutações estão centralizadas em `lib/padel-queries.ts` e `lib/padel-data.ts`; configura as variáveis de ambiente antes de arrancar.
 
 ## Proximas funcoes boas
 

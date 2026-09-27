@@ -6,6 +6,7 @@ export type PlayerRecord = {
   matches: number;
   wins: number;
   inactivity_penalty: number;
+  inactivity_forfeit: number;
   last_decay_at: string | null;
   created_at: string;
 };
