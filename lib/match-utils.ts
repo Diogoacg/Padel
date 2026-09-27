@@ -72,5 +72,5 @@ function marginMultiplier(sets: MatchFormSets, winnerSide: "a" | "b") {
   const winnerSets = playedSets.filter((set) =>
     winnerSide === "a" ? set.a > set.b : set.b > set.a
   );
-  return winnerSets.length === 2 && playedSets.length === 2 ? 1.1 : 0.9;
+  return winnerSets.length === 2 && playedSets.length === 2 ? 1.4 : 0.9;
 }
