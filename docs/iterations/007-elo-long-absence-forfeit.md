@@ -32,3 +32,7 @@ A execução remota da nova migração fica pendente de revisão e integração 
 ## Próximo passo
 
 Rever os testes e o CI, integrar a PR e aplicar apenas a nova migration numa operação controlada com verificação de snapshot, contagens, eventos e ranking. Confirmar num regresso real o desconto, a parcela perdida e o delta calculado com o novo Elo base.
+
+## Continuação após integração da PR #7 (2026-09-27)
+
+A PR foi integrada e a migração incremental de perda definitiva foi aplicada uma única vez ao projeto Padel, com resultado de sucesso. Consulta de leitura posterior confirmou a presença dos snapshots anterior e desta mudança, a conservação das contagens de jogadores/jogos/eventos, e zero divergências entre ranking, Elo base e penalização temporária. A classificação não mudou: ainda não ocorreu um regresso depois de mais de 60 dias de inatividade nesta época, logo não foi cobrada qualquer perda definitiva. A função devolveu zero no dia 60, 13 pontos no dia 61 e 100 pontos no dia 89, para Elo suficiente. O CI Quality #15 da PR passou testes, lint, build e E2E. O passo pendente é observar um regresso real e confirmar a parcela definitiva no evento e no perfil. As notas acima sobre migração pendente registam o estado anterior à integração.
