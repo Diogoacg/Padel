@@ -12,9 +12,9 @@ Filtrar a resposta `season_player_standings` por jogos concluídos no cliente; a
 
 - `npm test`: 28/28 passaram.
 - `npm run lint`: passou.
-- `npx next build --webpack`: passou, incluindo TypeScript. A build padrão depende de instalação normal de dependências no CI; o worktree local usa um link simbólico.
-- Testes E2E Playwright acrescentados para ranking mobile a 320 px, época vazia e cinco participantes após excluir jogadores sem jogos; execução local pendente por falta do Chromium no ambiente, a confirmar no CI.
+- `npx next build --webpack`: passou, incluindo TypeScript; a build padrão passou no CI Quality #21 com instalação normal de dependências.
+- Testes E2E Playwright para ranking mobile a 320 px, época vazia e cinco participantes após excluir jogadores sem jogos: passaram no CI Quality #21 com Chromium. Não executados localmente porque o Chromium não estava instalado.
 
 ## Próximo passo
 
-Rever o CI e a PR. Após integração, confirmar a lista no telemóvel; não existe migração de base de dados nesta iteração.
+Rever e integrar a PR; depois confirmar a lista no telemóvel. Não existe migração de base de dados nesta iteração.
