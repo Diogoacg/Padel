@@ -16,6 +16,7 @@ export type Player = {
   matches: number;
   wins: number;
   inactivityPenalty: number;
+  inactivityForfeit: number;
   lastDecayAt: string | null;
 };
 
@@ -92,6 +93,7 @@ export const mapPlayer = (record: PlayerRecord): Player => ({
   matches: record.matches,
   wins: record.wins,
   inactivityPenalty: record.inactivity_penalty,
+  inactivityForfeit: record.inactivity_forfeit,
   lastDecayAt: record.last_decay_at
 });
 
@@ -137,6 +139,7 @@ export const mapHomeDashboard = (record: HomeDashboardRecord): HomeDashboard => 
     matches: player.matches,
     wins: player.wins,
     inactivityPenalty: player.inactivityPenalty,
+    inactivityForfeit: 0,
     lastDecayAt: player.lastDecayAt
   })),
   bestDuo: record.best_duo_label
@@ -184,7 +187,7 @@ export async function getPlayers() {
 
   const { data, error } = await supabase
     .from("players")
-    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
+    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, inactivity_forfeit, last_decay_at, created_at")
     .order("rating", { ascending: false })
     .returns<PlayerRecord[]>();
 
@@ -230,6 +233,7 @@ export async function getSeasonStandings(seasonId: string) {
     matches: record.matches,
     wins: record.wins,
     inactivityPenalty: 0,
+    inactivityForfeit: 0,
     lastDecayAt: null
   }));
 }
@@ -239,7 +243,7 @@ export async function getPlayer(id: string) {
 
   const { data, error } = await supabase
     .from("players")
-    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
+    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, inactivity_forfeit, last_decay_at, created_at")
     .eq("id", id)
     .single<PlayerRecord>();
 
@@ -328,7 +332,7 @@ export async function createPlayer(name: string) {
   const { data, error } = await supabase
     .from("players")
     .insert({ name })
-    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, last_decay_at, created_at")
+    .select("id, name, base_rating, rating, matches, wins, inactivity_penalty, inactivity_forfeit, last_decay_at, created_at")
     .single<PlayerRecord>();
 
   if (error) throw new Error(error.message);

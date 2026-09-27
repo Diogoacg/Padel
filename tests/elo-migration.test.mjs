@@ -8,6 +8,15 @@ const migration = readFileSync(
   "utf8",
 );
 
+const graceMigration = readFileSync(
+  new URL("../supabase/migrations/20260927_elo_activity_grace_30_days.sql", import.meta.url),
+  "utf8",
+);
+const longAbsenceMigration = readFileSync(
+  new URL("../supabase/migrations/20260927_elo_long_absence_forfeit.sql", import.meta.url),
+  "utf8",
+);
+
 const ids = [
   "00000000-0000-4000-8000-000000000001",
   "00000000-0000-4000-8000-000000000002",
@@ -20,7 +29,7 @@ const firstMatchId = "20000000-0000-4000-8000-000000000001";
 const secondMatchId = "20000000-0000-4000-8000-000000000002";
 const pendingMatchId = "20000000-0000-4000-8000-000000000003";
 
-async function createDatabase({ invalidMatch = false } = {}) {
+async function createDatabase({ invalidMatch = false, longAbsence = false } = {}) {
   const db = new PGlite();
   await db.waitReady;
   await db.exec(`
@@ -98,6 +107,20 @@ async function createDatabase({ invalidMatch = false } = {}) {
     "insert into public.seasons (id, name, starts_at, active) values ($1, 'Current', current_date - 21, true)",
     [seasonId],
   );
+  if (longAbsence) {
+    await db.query("update public.seasons set starts_at = current_date - 100 where id = $1", [seasonId]);
+    await db.query(`
+      insert into public.matches (
+        id, season_id, status, played_at,
+        team_a_player_1, team_a_player_2, team_b_player_1, team_b_player_2,
+        score_a, score_b, set_1_a, set_1_b, set_2_a, set_2_b, set_3_a, set_3_b,
+        rating_delta, created_at
+      ) values (
+        '20000000-0000-4000-8000-000000000004', $1, 'completed', current_date - 100,
+        $2, $3, $4, $5, 2, 0, 6, 3, 6, 4, 0, 0, 0, current_timestamp - interval '3 days'
+      )
+    `, [seasonId, ids[4], ids[0], ids[1], ids[2]]);
+  }
 
   // The old state has a completed win, a later reversal, and a pending row
   // whose date must not count as activity or enter the replay.
@@ -138,6 +161,8 @@ async function applyMigration(db) {
   await db.exec("begin");
   try {
     await db.exec(migration);
+    await db.exec(graceMigration);
+    await db.exec(longAbsenceMigration);
     await db.exec("commit");
   } catch (error) {
     await db.exec("rollback");
@@ -147,13 +172,13 @@ async function applyMigration(db) {
 
 async function readPlayers(db) {
   return (await db.query(
-    "select id, rating, base_rating, matches, wins, inactivity_penalty from public.players order by id",
+    "select id, rating, base_rating, matches, wins, inactivity_penalty, inactivity_forfeit from public.players order by id",
   )).rows;
 }
 
 async function matchEvents(db) {
   return (await db.query(`
-    select m.id as match_id, e.player_id, e.rating_before, e.rating_after,
+    select m.id as match_id, e.player_id, e.rating_before, e.rating_after, e.inactivity_forfeit,
       e.matches_before, e.matches_after, e.wins_before, e.wins_after
     from public.rating_events e join public.matches m on m.id = e.match_id
     order by m.played_at, m.created_at, m.id, e.player_id
@@ -199,6 +224,12 @@ test("replays completed matches, snapshots the old state, and is idempotent", as
     match_count: 3,
     event_count: 1,
     first_saved_rating: "1017",
+  }, {
+    algorithm: "elo-long-absence-20260927",
+    player_count: 5,
+    match_count: 3,
+    event_count: 8,
+    first_saved_rating: "1002",
   }]);
 
   await applyMigration(db);
@@ -207,7 +238,7 @@ test("replays completed matches, snapshots the old state, and is idempotent", as
   const { rows: snapshots } = await db.query(
     "select count(*)::integer as count from padel_internal.rating_snapshots",
   );
-  assert.equal(snapshots[0].count, 1);
+  assert.equal(snapshots[0].count, 2);
 });
 
 test("backdated register_match replays forward and delete_match returns to the baseline", async (t) => {
@@ -244,7 +275,7 @@ test("backdated register_match replays forward and delete_match returns to the b
   assert.deepEqual(await matchEvents(db), beforeEvents);
 });
 
-test("pending rows do not count as activity; decay has 14-day grace and caps at 200", async (t) => {
+test("pending rows do not count as activity; decay has 30-day grace and caps at 200", async (t) => {
   const db = await createDatabase();
   t.after(() => db.close());
   await applyMigration(db);
@@ -259,25 +290,27 @@ test("pending rows do not count as activity; decay has 14-day grace and caps at 
 
   const { rows: decay } = await db.query(`
     select
-      public.inactivity_decay_points($1::date, $1::date + 14) as grace_end,
-      public.inactivity_decay_points($1::date, $1::date + 15) as first_point,
-      public.inactivity_decay_points($1::date, $1::date + 21) as one_week,
-      public.inactivity_decay_points($1::date, $1::date + 22) as second_week,
-      public.inactivity_decay_points($1::date, $1::date + 70) as cap,
+      public.inactivity_decay_points($1::date, $1::date + 30) as grace_end,
+      public.inactivity_decay_points($1::date, $1::date + 31) as first_point,
+      public.inactivity_decay_points($1::date, $1::date + 37) as one_week,
+      public.inactivity_decay_points($1::date, $1::date + 38) as second_week,
+      public.inactivity_decay_points($1::date, $1::date + 80) as cap,
       public.inactivity_decay_points($1::date, $1::date + 200) as capped
   `, [today[0].today]);
   assert.deepEqual(Object.values(decay[0]), [0, 25, 25, 50, 200, 200]);
 
   await db.query("update public.players set rating = base_rating, inactivity_penalty = 0");
   const { rows: changed } = await db.query(
-    "select public.apply_inactivity_decay(current_date + 9) as changed",
+    "select public.apply_inactivity_decay(current_date + 24) as changed",
   );
   assert.equal(changed[0].changed, 5);
   const { rows: player5 } = await db.query(
-    "select rating, base_rating, inactivity_penalty from public.players where id = $1",
+    "select rating, base_rating, inactivity_penalty, inactivity_forfeit from public.players where id = $1",
     [ids[4]],
   );
-  assert.deepEqual(player5[0], { rating: 925, base_rating: 1000, inactivity_penalty: 75 });
+  assert.deepEqual(player5[0], {
+    rating: 925, base_rating: 1000, inactivity_penalty: 75, inactivity_forfeit: 0,
+  });
 
   const { rows: played } = await db.query(`
     select * from public.register_match(
@@ -285,7 +318,7 @@ test("pending rows do not count as activity; decay has 14-day grace and caps at 
     )
   `, [ids[4], ids[0], ids[2], ids[3]]);
   const { rows: recovered } = await db.query(
-    "select rating, base_rating, inactivity_penalty from public.players where id = $1",
+    "select rating, base_rating, inactivity_penalty, inactivity_forfeit from public.players where id = $1",
     [ids[4]],
   );
   assert.equal(played[0].rating_delta > 0, true);
@@ -293,7 +326,103 @@ test("pending rows do not count as activity; decay has 14-day grace and caps at 
     rating: 1000 + played[0].rating_delta,
     base_rating: 1000 + played[0].rating_delta,
     inactivity_penalty: 0,
+    inactivity_forfeit: 0,
   });
+});
+
+test("permanent absence forfeit applies only beyond day 60 and caps at half the transient decay", async (t) => {
+  const db = await createDatabase();
+  t.after(() => db.close());
+  await applyMigration(db);
+
+  const { rows } = await db.query(`
+    select
+      public.inactivity_forfeit_points($1::date, $1::date + 60) as day_60,
+      public.inactivity_forfeit_points($1::date, $1::date + 61) as day_61,
+      public.inactivity_forfeit_points($1::date, $1::date + 67) as day_67,
+      public.inactivity_forfeit_points($1::date, $1::date + 68) as day_68,
+      public.inactivity_forfeit_points($1::date, $1::date + 89) as day_89,
+      public.inactivity_forfeit_points($1::date, $1::date + 95) as day_95,
+      public.inactivity_forfeit_points($1::date, $1::date + 200) as day_200
+  `, ["2020-01-01"]);
+  assert.deepEqual(Object.values(rows[0]), [0, 13, 15, 30, 100, 100, 100]);
+});
+
+test("a returning player permanently loses the forfeit before team Elo and replay is idempotent", async (t) => {
+  const db = await createDatabase({ longAbsence: true });
+  t.after(() => db.close());
+  await applyMigration(db);
+
+  const before = await db.query(
+    "select base_rating, rating, inactivity_forfeit from public.players where id = $1",
+    [ids[4]],
+  );
+  assert.equal(before.rows[0].inactivity_forfeit, 0, "a forfeit is charged when the player returns");
+
+  const { rows: backdated } = await db.query(`
+    select (public.register_match(
+      current_date - 50, $1, $2, $3, $4, 2, 0, 6, 3, 6, 4, 0, 0, 999
+    )).id as id
+  `, [ids[4], ids[0], ids[1], ids[2]]);
+  const { rows: backdatedEvent } = await db.query(`
+    select inactivity_forfeit from public.rating_events where match_id = $1 and player_id = $2
+  `, [backdated[0].id, ids[4]]);
+  assert.equal(backdatedEvent[0].inactivity_forfeit, 0, "a match within 60 days has no permanent loss");
+  await db.query("select public.delete_match($1)", [backdated[0].id]);
+  assert.deepEqual((await db.query(
+    "select base_rating, rating, inactivity_forfeit from public.players where id = $1", [ids[4]],
+  )).rows[0], before.rows[0], "deleting a backdated activity restores the no-return baseline");
+
+  const { rows: returned } = await db.query(`
+    select * from public.register_match(
+      current_date, $1, $2, $3, $4, 2, 0, 6, 3, 6, 4, 0, 0, 999
+    )
+  `, [ids[4], ids[0], ids[1], ids[2]]);
+  const returnId = returned[0].id;
+  const { rows: event } = await db.query(`
+    select rating_before, rating_after, inactivity_forfeit
+    from public.rating_events where match_id = $1 and player_id = $2
+  `, [returnId, ids[4]]);
+  const { rows: player } = await db.query(
+    "select rating, base_rating, inactivity_penalty, inactivity_forfeit from public.players where id = $1",
+    [ids[4]],
+  );
+  assert.equal(event[0].inactivity_forfeit, 100);
+  assert.equal(event[0].rating_before, before.rows[0].base_rating - 100);
+  assert.equal(event[0].rating_after > event[0].rating_before, true);
+  assert.equal(player[0].inactivity_forfeit, 100);
+  assert.equal(player[0].base_rating, event[0].rating_after);
+  assert.equal(player[0].rating, player[0].base_rating);
+  assert.equal(player[0].inactivity_penalty, 0);
+
+  const { rows: repeated } = await db.query(`
+    select * from public.register_match(
+      current_date, $1, $2, $3, $4, 2, 0, 6, 3, 6, 4, 0, 0, 999
+    )
+  `, [ids[4], ids[0], ids[1], ids[2]]);
+  const { rows: secondEvent } = await db.query(`
+    select inactivity_forfeit from public.rating_events where match_id = $1 and player_id = $2
+  `, [repeated[0].id, ids[4]]);
+  assert.equal(secondEvent[0].inactivity_forfeit, 0, "the same absence must not be charged twice");
+  const { rows: accumulated } = await db.query(
+    "select inactivity_forfeit from public.players where id = $1", [ids[4]],
+  );
+  assert.equal(accumulated[0].inactivity_forfeit, 100);
+
+  await db.query("update public.seasons set active = false, ends_at = current_date where id = $1", [seasonId]);
+  const { rows: archived } = await db.query(
+    "select rating from public.season_player_standings($1) where player_id = $2",
+    [seasonId, ids[4]],
+  );
+  assert.equal(archived[0].rating, (await db.query(
+    "select base_rating from public.players where id = $1", [ids[4]],
+  )).rows[0].base_rating);
+
+  const firstPlayers = await readPlayers(db);
+  const firstEvents = await matchEvents(db);
+  await applyMigration(db);
+  assert.deepEqual(await readPlayers(db), firstPlayers);
+  assert.deepEqual(await matchEvents(db), firstEvents);
 });
 
 test("invalid legacy replay aborts the migration without leaving partial DDL or data", async (t) => {
