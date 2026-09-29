@@ -42,6 +42,7 @@ Nenhuma aplicação remota foi feita. A migração foi preparada e validada loca
 - `npm run lint`: aprovado.
 - `npm run build`: aprovado com Next.js 16.2.6.
 - `npm run test:e2e`: iniciado, mas não executado; o Chromium do Playwright não estava instalado e o download foi bloqueado pelo ambiente. A alteração não modifica a interface nem o runtime da aplicação.
+- [GitHub Quality #23](https://github.com/Diogoacg/Padel/actions/runs/36631929123): aprovado, incluindo instalação do Chromium e os 17 testes E2E/mobile.
 - `git diff --check`: aprovado.
 
 ## Próximo passo
