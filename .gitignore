@@ -8,3 +8,4 @@ skills-lock.json
 test-results/
 playwright-report/
 *.tsbuildinfo
+/supabase/.temp/
