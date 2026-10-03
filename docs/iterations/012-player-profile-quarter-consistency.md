@@ -32,7 +32,8 @@ Esta alteração é exclusivamente frontend e testes. Não altera RPCs, dados, E
 - `npm run lint`: aprovado.
 - `npm run build`: aprovado com Next.js 16.2.6 e TypeScript.
 - `git diff --check`: aprovado.
-- `npm run test:e2e -- --list`: 20 cenários descobertos, incluindo três novos para perfil mobile com pendente, jogador sem participação e expansão para nove jogos. Não executados localmente porque o Chromium do Playwright não está instalado neste ambiente; aguardam o CI da PR.
+- `npm run test:e2e -- --list`: 20 cenários descobertos, incluindo três novos para perfil mobile com pendente, jogador sem participação e expansão para nove jogos.
+- [Quality #26](https://github.com/Diogoacg/Padel/actions/runs/37154768363): aprovado — testes unitários, lint, build e 20/20 cenários end-to-end em Chromium. O primeiro CI revelou overflow real a 320 px; a correção foi validada por esta segunda execução. O Chromium não estava disponível para execução local.
 
 ## Estado Supabase em 2026-10-03
 
