@@ -14,6 +14,7 @@ Esta alteração é exclusivamente frontend e testes. Não altera RPCs, dados, E
 - Obter a posição através de `season_player_standings`, tal como a página de ranking, e mostrar `–` para quem ainda não participou no trimestre.
 - Mostrar inicialmente os três jogos mais recentes e, quando expandido, todos os jogos concluídos — sem o antigo limite de oito.
 - Identificar claramente o estado vazio da época ativa e expor `aria-expanded` nos controlos de expansão.
+- Permitir que a grelha, o histórico de Elo e textos longos encolham/quebrem corretamente a 320 px.
 
 ## Critérios de aceitação
 
