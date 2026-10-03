@@ -19,7 +19,15 @@ async function selectTeams(page) {
   }
 }
 
-async function mockApi(page, { historyError = false, completed = false, failFirstMutation, listMatch = false, playerRows = players } = {}) {
+async function mockApi(page, {
+  historyError = false,
+  completed = false,
+  failFirstMutation,
+  listMatch = false,
+  playerRows = players,
+  matchRows,
+  ratingHistoryRows = []
+} = {}) {
   const writes = [];
   let failedFirstMutation = false;
   let deleted = false;
@@ -31,13 +39,20 @@ async function mockApi(page, { historyError = false, completed = false, failFirs
     if (request.method() === 'OPTIONS') {
       return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
     }
-    if (resource === 'players') data = playerRows;
+    if (resource === 'players') {
+      const playerId = url.searchParams.get('id')?.replace(/^eq\./, '');
+      const selected = playerId ? playerRows.find((player) => player.id === playerId) : null;
+      data = selected && request.headers().accept?.includes('application/vnd.pgrst.object+json')
+        ? selected
+        : playerRows;
+    }
     if (resource === 'current_season_id') data = 'season';
     if (resource === 'seasons') {
       const season = { id: 'season', name: '2026 T3', starts_at: '2026-07-01', ends_at: '2026-09-30', active: true, quarter_year: 2026, quarter_number: 3 };
       data = request.headers().accept?.includes('application/vnd.pgrst.object+json') ? season : [season];
     }
     if (resource === 'season_player_standings') data = playerRows.map(({ id, name, rating, matches, wins }) => ({ player_id: id, name, rating, matches, wins }));
+    if (resource === 'player_rating_history') data = ratingHistoryRows;
     if (resource === 'home_dashboard') data = {
       season_id: 'season', season_name: '2026 T3', total_players: playerRows.length,
       total_matches: 10, average_rating: 1000, inactive_players: 0,
@@ -55,7 +70,10 @@ async function mockApi(page, { historyError = false, completed = false, failFirs
       }
       data = url.searchParams.has('id') ? {
         ...match, ...(completed ? { status: 'completed', score_a: 2, set_1_a: 6, set_1_b: 4, set_2_a: 6, set_2_b: 3 } : {})
-      } : listMatch && !deleted ? [{ ...match, ...(completed ? { status: 'completed', score_a: 2, set_1_a: 6, set_1_b: 4, set_2_a: 6, set_2_b: 3 } : {}) }] : [];
+      } : matchRows ? matchRows.filter((row) => {
+        const seasonFilter = url.searchParams.get('season_id');
+        return !seasonFilter || row.season_id === seasonFilter.replace(/^eq\./, '');
+      }) : listMatch && !deleted ? [{ ...match, ...(completed ? { status: 'completed', score_a: 2, set_1_a: 6, set_1_b: 4, set_2_a: 6, set_2_b: 3 } : {}) }] : [];
     }
     if (resource === 'apply_inactivity_decay') data = 0;
     if (['register_match', 'replace_match', 'create_pending_match', 'delete_match'].includes(resource)) {
@@ -122,6 +140,115 @@ test('empty quarter has no ranked players but still offers player registration',
   await expect(page.locator('.playerRow')).toHaveCount(0);
   await expect(page.getByText('Ainda ninguém jogou nesta época.')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Juntar' })).toBeVisible();
+});
+
+test('mobile player profile uses only completed active-season matches', async ({ page }) => {
+  const playerRows = players.map((player, index) => ({
+    ...player,
+    rating: index === 0 ? 1048 : player.rating,
+    matches: index < 2 ? 2 : 0,
+    wins: index < 2 ? 2 : 0
+  }));
+  const profileMatches = [
+    {
+      ...match, id: 'profile-old-win', status: 'completed', played_at: '2026-08-01',
+      score_a: 2, score_b: 1, set_1_a: 6, set_1_b: 4, set_2_a: 4, set_2_b: 6,
+      set_3_a: 7, set_3_b: 5, rating_delta: 20
+    },
+    {
+      ...match, id: 'profile-other-season', season_id: 'season-previous', status: 'completed', played_at: '2026-06-20',
+      score_a: 0, score_b: 2, set_1_a: 0, set_1_b: 6, set_2_a: 2, set_2_b: 6, rating_delta: 150
+    },
+    {
+      ...match, id: 'profile-pending', status: 'pending', played_at: '2026-08-28',
+      team_a_player_1: 'player-0', team_a_player_2: 'player-2',
+      score_a: 0, score_b: 2, set_1_a: 0, set_1_b: 6, set_2_a: 2, set_2_b: 6, rating_delta: 99
+    },
+    {
+      ...match, id: 'profile-new-win', status: 'completed', played_at: '2026-08-20',
+      score_a: 2, score_b: 0, set_1_a: 6, set_1_b: 0, set_2_a: 6, set_2_b: 2, rating_delta: 24
+    }
+  ];
+  const ratingHistoryRows = ['profile-new-win', 'profile-old-win'].map((matchId, index) => ({
+    match_id: matchId,
+    played_at: index === 0 ? '2026-08-20' : '2026-08-01',
+    rating_before: index === 0 ? 1024 : 1004,
+    rating_after: index === 0 ? 1048 : 1024,
+    rating_delta: index === 0 ? 24 : 20,
+    won: true,
+    team_label: 'Ana / Bruno',
+    opponent_label: 'Carla / Diogo',
+    score_label: index === 0 ? '2-0' : '2-1'
+  }));
+  await mockApi(page, { playerRows, matchRows: profileMatches, ratingHistoryRows });
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto('/jogadores/player-0');
+
+  const profileRows = page.locator('.matchList .matchRow');
+  await expect(page.getByRole('heading', { name: 'Ana em números' })).toBeVisible();
+  await expect(profileRows).toHaveCount(2);
+  await expect(profileRows.nth(0)).toHaveAttribute('href', '/jogos/profile-new-win');
+  await expect(profileRows.nth(1)).toHaveAttribute('href', '/jogos/profile-old-win');
+  await expect(page.locator('.cardStats > div').nth(2).locator('strong')).toHaveText('2');
+  await expect(page.locator('.compactInsights .insightCard').filter({ hasText: 'Melhor parceiro' })).toContainText('Bruno');
+  await expect(page.locator('.compactInsights .insightCard').filter({ hasText: 'Momento' })).toContainText('Está quente');
+  await expect(page.locator('.compactInsights .insightCard').filter({ hasText: 'Momento' })).toContainText('+2 seguidos');
+  await expect(page.locator('.ratingPoint')).toHaveCount(2);
+  await expect(page.locator('.ratingPoint').nth(0)).toHaveAttribute('href', '/jogos/profile-new-win');
+  await expect(page.locator('.ratingPoint').nth(1)).toHaveAttribute('href', '/jogos/profile-old-win');
+  await expect(page.locator('.ratingHistoryFooter')).toContainText('2 jogos com Elo base');
+  await expect(page.locator('.matchList')).not.toContainText('0 - 2');
+  await expect(page.locator('.matchList')).not.toContainText('99');
+  await expect(page.locator('.matchList')).not.toContainText('150');
+
+  await page.getByRole('button', { name: 'Ver raio-x completo' }).click();
+  await expect(page.locator('.expandedInsights .insightCard').filter({ hasText: 'Jogos na época' })).toContainText('2');
+  await expect(page.locator('.expandedInsights .insightCard').filter({ hasText: 'Pior dor de cabeça' })).toContainText('Ainda sem trauma');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('player with no participation has an empty profile and no invented Elo history', async ({ page }) => {
+  const playerRows = [{ ...players[0], matches: 0, wins: 0 }];
+  await mockApi(page, { playerRows, matchRows: [], ratingHistoryRows: [] });
+  await page.goto('/jogadores/player-0');
+
+  await expect(page.locator('.cardTop')).toContainText('RK–');
+  await expect(page.locator('.cardStats > div').nth(2).locator('strong')).toHaveText('0');
+  await expect(page.locator('.compactInsights .insightCard').filter({ hasText: 'Melhor parceiro' })).toContainText('Ainda sem dupla');
+  await expect(page.locator('.compactInsights .insightCard').filter({ hasText: 'Momento' })).toContainText('Sem série');
+  await expect(page.locator('.compactInsights .insightCard').filter({ hasText: 'Momento' })).toContainText('0 jogos');
+  await expect(page.getByText('Ainda não há jogos com alteração de Elo base nesta época.')).toBeVisible();
+  await expect(page.getByText('Ainda não há jogos concluídos na época 2026 T3.')).toBeVisible();
+  await expect(page.locator('.ratingPoint')).toHaveCount(0);
+  await expect(page.locator('.matchList .matchRow')).toHaveCount(0);
+});
+
+test('expanding player match history reveals every match beyond the first eight', async ({ page }) => {
+  const matchRows = Array.from({ length: 9 }, (_, index) => ({
+    ...match,
+    id: `profile-match-${index}`,
+    status: 'completed',
+    played_at: `2026-08-${String(29 - index).padStart(2, '0')}`,
+    score_a: 2,
+    score_b: 0,
+    set_1_a: 6,
+    set_1_b: 4,
+    set_2_a: 6,
+    set_2_b: 3,
+    rating_delta: 12
+  }));
+  const playerRows = players.map((player, index) => ({
+    ...player,
+    matches: index < 2 ? 9 : 0,
+    wins: index < 2 ? 9 : 0
+  }));
+  await mockApi(page, { playerRows, matchRows });
+  await page.goto('/jogadores/player-0');
+
+  await expect(page.locator('.matchList .matchRow')).toHaveCount(3);
+  await page.getByRole('button', { name: 'Ver histórico completo' }).click();
+  await expect(page.locator('.matchList .matchRow')).toHaveCount(9);
+  await expect(page.locator('.matchList .matchRow').last()).toHaveAttribute('href', '/jogos/profile-match-8');
 });
 
 test('home ranking fills all five places with players who have matches', async ({ page }) => {

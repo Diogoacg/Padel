@@ -6,8 +6,16 @@ import { useParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { ListSkeleton, SkeletonBlock } from "@/app/components/LoadingSkeleton";
-import { useActiveSeason, useMatches, usePlayer, usePlayerRatingHistory, usePlayers, usePrefetchMatch } from "@/lib/padel-queries";
-import type { Match, Player, PlayerRatingHistoryPoint } from "@/lib/padel-data";
+import { useActiveSeason, useMatches, usePlayer, usePlayerRatingHistory, usePlayers, usePrefetchMatch, useSeasonStandings } from "@/lib/padel-queries";
+import type { PlayerRatingHistoryPoint } from "@/lib/padel-data";
+import {
+  buildPlayerInsights,
+  completedPlayerMatches,
+  playerWonMatch,
+  recentWins,
+  setsLabel,
+  teamLabel
+} from "@/lib/player-profile-utils";
 
 export default function PlayerPage() {
   const params = useParams<{ id: string }>();
@@ -17,37 +25,49 @@ export default function PlayerPage() {
   const activeSeasonQuery = useActiveSeason();
   const playerQuery = usePlayer(params.id);
   const playersQuery = usePlayers();
-  const matchesQuery = useMatches(activeSeasonQuery.data?.id, !activeSeasonQuery.isLoading);
+  const activeSeason = activeSeasonQuery.data ?? null;
+  const matchesQuery = useMatches(activeSeason?.id, !activeSeasonQuery.isLoading && Boolean(activeSeason?.id));
+  const standingsQuery = useSeasonStandings(activeSeason?.id ?? "", Boolean(activeSeason?.id));
   const ratingHistoryQuery = usePlayerRatingHistory(
     params.id,
-    activeSeasonQuery.data?.id,
-    !activeSeasonQuery.isLoading
+    activeSeason?.id,
+    !activeSeasonQuery.isLoading && Boolean(activeSeason?.id)
   );
   const prefetchMatch = usePrefetchMatch();
   const player = playerQuery.data ?? null;
   const players = useMemo(() => playersQuery.data ?? [], [playersQuery.data]);
   const matches = useMemo(() => matchesQuery.data ?? [], [matchesQuery.data]);
+  const standings = useMemo(() => standingsQuery.data ?? [], [standingsQuery.data]);
   const ratingHistory = ratingHistoryQuery.data ?? [];
   const loading =
     playerQuery.isLoading ||
     playersQuery.isLoading ||
     activeSeasonQuery.isLoading ||
     matchesQuery.isLoading ||
-    ratingHistoryQuery.isLoading;
+    matchesQuery.isPlaceholderData ||
+    standingsQuery.isLoading ||
+    ratingHistoryQuery.isLoading ||
+    ratingHistoryQuery.isPlaceholderData;
 
   const queryError =
     playerQuery.error ??
     playersQuery.error ??
     activeSeasonQuery.error ??
     matchesQuery.error ??
+    standingsQuery.error ??
     ratingHistoryQuery.error;
   const displayError = error || (queryError instanceof Error ? queryError.message : queryError ? "Erro a abrir a ficha." : "");
 
   const playerMatches = useMemo(
-    () => matches.filter((match) => matchHasPlayer(match, params.id)),
-    [matches, params.id]
+    () => completedPlayerMatches(matches, params.id, activeSeason?.id ?? ""),
+    [matches, params.id, activeSeason?.id]
   );
-  const rank = players.findIndex((item) => item.id === params.id) + 1;
+  const rankedPlayers = useMemo(
+    () => [...standings].sort((a, b) => b.rating - a.rating),
+    [standings]
+  );
+  const rankIndex = rankedPlayers.findIndex((item) => item.id === params.id);
+  const rank = rankIndex >= 0 && rankedPlayers[rankIndex].matches > 0 ? rankIndex + 1 : null;
   const winRate = player?.matches ? Math.round((player.wins / player.matches) * 100) : 0;
   const overall = player ? ratingToOverall(player.rating) : 0;
   const form = recentWins(playerMatches, params.id);
@@ -76,7 +96,7 @@ export default function PlayerPage() {
               </div>
               <div>
                 <span>RK</span>
-                <strong>#{rank || "-"}</strong>
+                <strong>{rank ? `#${rank}` : "–"}</strong>
               </div>
             </div>
 
@@ -196,6 +216,7 @@ export default function PlayerPage() {
             ) : null}
 
             <button
+              aria-expanded={showFullInsights}
               className="textButton expandButton"
               onClick={() => setShowFullInsights((current) => !current)}
               type="button"
@@ -205,14 +226,18 @@ export default function PlayerPage() {
 
             <div className="sectionTitle">
               <p className="eyebrow">Histórico</p>
-              <h2>{showFullHistory ? "Últimos jogos" : "Últimos 3 jogos"}</h2>
+              <h2>{showFullHistory ? "Histórico completo" : "Últimos 3 jogos"}</h2>
             </div>
 
             <div className="matchList">
               {playerMatches.length === 0 ? (
-                <div className="emptyState">Ainda não há jogos nesta ficha.</div>
+                <div className="emptyState">
+                  {activeSeason
+                    ? `Ainda não há jogos concluídos na época ${activeSeason.name}.`
+                    : "Ainda não há uma época ativa com jogos concluídos."}
+                </div>
               ) : null}
-              {playerMatches.slice(0, showFullHistory ? 8 : 3).map((match) => (
+              {(showFullHistory ? playerMatches : playerMatches.slice(0, 3)).map((match) => (
                 <Link
                   className="matchRow matchLink"
                   href={`/jogos/${match.id}`}
@@ -238,6 +263,7 @@ export default function PlayerPage() {
 
             {playerMatches.length > 3 ? (
               <button
+                aria-expanded={showFullHistory}
                 className="textButton expandButton"
                 onClick={() => setShowFullHistory((current) => !current)}
                 type="button"
@@ -404,117 +430,6 @@ function InsightCard({
   );
 }
 
-function matchHasPlayer(match: Match, playerId: string) {
-  return [...match.teamA, ...match.teamB].includes(playerId);
-}
-
-function recentWins(matches: Match[], playerId: string) {
-  return matches
-    .slice(0, 5)
-    .filter((match) => {
-      const teamAWon = match.scoreA > match.scoreB;
-      return teamAWon ? match.teamA.includes(playerId) : match.teamB.includes(playerId);
-    }).length;
-}
-
-function playerWonMatch(match: Match, playerId: string) {
-  const teamAWon = match.scoreA > match.scoreB;
-  return teamAWon ? match.teamA.includes(playerId) : match.teamB.includes(playerId);
-}
-
-function buildPlayerInsights(matches: Match[], playerId: string, players: Player[]) {
-  const partners = new Map<string, { id: string; name: string; matches: number; wins: number }>();
-  const opponents = new Map<string, { id: string; name: string; matches: number; losses: number }>();
-  let biggestGain: { delta: number; label: string } | null = null;
-  let biggestLoss: { delta: number; label: string } | null = null;
-  let bagelsGiven = 0;
-  let bagelsTaken = 0;
-
-  for (const match of matches) {
-    const playerTeam = match.teamA.includes(playerId) ? match.teamA : match.teamB;
-    const opponentTeam = match.teamA.includes(playerId) ? match.teamB : match.teamA;
-    const won = playerWonMatch(match, playerId);
-    const partnerId = playerTeam.find((id) => id !== playerId);
-
-    if (partnerId) {
-      const partner = partners.get(partnerId) ?? {
-        id: partnerId,
-        name: playerNameById(partnerId, players),
-        matches: 0,
-        wins: 0
-      };
-      partner.matches += 1;
-      if (won) partner.wins += 1;
-      partners.set(partnerId, partner);
-    }
-
-    for (const opponentId of opponentTeam) {
-      const opponent = opponents.get(opponentId) ?? {
-        id: opponentId,
-        name: playerNameById(opponentId, players),
-        matches: 0,
-        losses: 0
-      };
-      opponent.matches += 1;
-      if (!won) opponent.losses += 1;
-      opponents.set(opponentId, opponent);
-    }
-
-    const label = `${new Date(match.playedAt).toLocaleDateString("pt-PT")} · ${setsLabel(match.sets)}`;
-    if (won && (!biggestGain || match.ratingDelta > biggestGain.delta)) {
-      biggestGain = { delta: match.ratingDelta, label };
-    }
-    if (!won && (!biggestLoss || match.ratingDelta > biggestLoss.delta)) {
-      biggestLoss = { delta: match.ratingDelta, label };
-    }
-
-    for (const set of match.sets.filter((currentSet, index) => index < 2 || currentSet.a + currentSet.b > 0)) {
-      const playerGames = playerTeam === match.teamA ? set.a : set.b;
-      const opponentGames = playerTeam === match.teamA ? set.b : set.a;
-
-      if (playerGames === 6 && opponentGames === 0) bagelsGiven += 1;
-      if (playerGames === 0 && opponentGames === 6) bagelsTaken += 1;
-    }
-  }
-
-  const bestPartner = Array.from(partners.values()).sort(
-    (a, b) => b.wins - a.wins || b.matches - a.matches || a.name.localeCompare(b.name)
-  )[0];
-  const hardestOpponent = Array.from(opponents.values()).sort(
-    (a, b) => b.losses - a.losses || b.matches - a.matches || a.name.localeCompare(b.name)
-  )[0];
-
-  return {
-    bestPartner,
-    hardestOpponent,
-    biggestGain,
-    biggestLoss,
-    bagelsGiven,
-    bagelsTaken,
-    currentStreak: buildCurrentStreak(matches, playerId)
-  };
-}
-
-function buildCurrentStreak(matches: Match[], playerId: string) {
-  if (matches.length === 0) {
-    return { label: "Sem série", value: "0 jogos", tone: undefined };
-  }
-
-  const firstWon = playerWonMatch(matches[0], playerId);
-  let count = 0;
-
-  for (const match of matches) {
-    if (playerWonMatch(match, playerId) !== firstWon) break;
-    count += 1;
-  }
-
-  return {
-    label: firstWon ? "Está quente" : "Está a sofrer",
-    value: `${firstWon ? "+" : "-"}${count} seguidos`,
-    tone: firstWon ? "gain" as const : "loss" as const
-  };
-}
-
 function ratingToOverall(rating: number) {
   return Math.max(40, Math.min(99, Math.round(rating / 15)));
 }
@@ -527,21 +442,4 @@ function initials(name: string) {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
-}
-
-function teamLabel(team: [string, string], players: Player[]) {
-  return team
-    .map((id) => playerNameById(id, players))
-    .join(" / ");
-}
-
-function playerNameById(id: string, players: Player[]) {
-  return players.find((player) => player.id === id)?.name ?? "Jogador";
-}
-
-function setsLabel(sets: Match["sets"]) {
-  return sets
-    .filter((set, index) => index < 2 || set.a + set.b > 0)
-    .map((set) => `${set.a}-${set.b}`)
-    .join(" / ");
 }

@@ -1915,6 +1915,16 @@ label {
     grid-template-columns: 1fr;
   }
 
+  .playerDetailGrid {
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  .playerDetailGrid > *,
+  .detailPanel {
+    min-width: 0;
+  }
+
   .hero {
     align-items: stretch;
     min-height: unset;
@@ -2155,6 +2165,27 @@ label {
   .detailPanel,
   .padelCourtWrap {
     padding: 12px;
+  }
+
+  .ratingHistory {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .ratingHistoryHeader,
+  .ratingHistoryFooter {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .ratingHistoryHeader > div {
+    flex: 1 1 160px;
+  }
+
+  .ratingHistoryHeader em,
+  .insightCard strong,
+  .matchRow strong {
+    overflow-wrap: anywhere;
   }
 
   .panelHeader {
