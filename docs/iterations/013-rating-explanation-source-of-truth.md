@@ -42,7 +42,8 @@ As PRs #4, #14 e #15 estão integradas. O histórico remoto contém apenas cinco
 - `npm run build`: aprovado com Next.js 16.2.6 e TypeScript.
 - `git diff --check`: aprovado.
 - `node --check tests-browser/flows.spec.mjs` e `npm run test:e2e -- --list`: aprovados; a suite lista 21 cenários.
-- O novo E2E abre a home e o ranking a 320 px, compara a explicação visível, valida os valores atuais, `aria-expanded` e overflow horizontal. A execução local não arrancou porque o executável Chromium do Playwright não está instalado neste ambiente; aguarda a execução no CI da PR.
+- O novo E2E abre a home e o ranking a 320 px, compara a explicação visível, valida os valores atuais, `aria-expanded` e overflow horizontal. A execução local não arrancou porque o executável Chromium do Playwright não está instalado neste ambiente.
+- [Quality #28](https://github.com/Diogoacg/Padel/actions/runs/37531769643): aprovado — 40 testes unitários/integração, lint, build e 21/21 cenários Playwright em Chromium.
 
 ## Próximo passo
 
