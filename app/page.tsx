@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { CardSkeletonGrid, ListSkeleton, MetricSkeletons } from "@/app/components/LoadingSkeleton";
+import RatingAlgorithmNote from "@/app/components/RatingAlgorithmNote";
 import { useActiveSeason, useHomeDashboard, usePrefetchPlayer } from "@/lib/padel-queries";
 
 export default function Home() {
@@ -103,6 +104,7 @@ export default function Home() {
           </div>
           <div className="headerActions">
             <button
+              aria-controls="rating-algorithm-note"
               aria-expanded={showAlgorithm}
               aria-label="Ver algoritmo do rating"
               className="iconButton"
@@ -116,7 +118,7 @@ export default function Home() {
           </div>
         </div>
 
-        {showAlgorithm ? <AlgorithmNote /> : null}
+        {showAlgorithm ? <RatingAlgorithmNote /> : null}
 
         {loading ? (
           <ListSkeleton rows={5} />
@@ -170,17 +172,6 @@ function DashboardCard({
       <strong>{title}</strong>
       <em>{value}</em>
     </article>
-  );
-}
-
-function AlgorithmNote() {
-  return (
-    <div className="algorithmNote">
-      Elo por equipas: todos começam em 1000, calcula-se a média das duas duplas e o
-      delta vem da dificuldade esperada. Um 2-1 vale menos, um 2-0 vale normal, e
-      diferenças grandes ou pneus dão bónus até 1.30x. Quem fica mais de 21 dias sem
-      jogar perde 3 pontos por semana, até 60 por ciclo de pausa.
-    </div>
   );
 }
 

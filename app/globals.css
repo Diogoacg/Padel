@@ -724,15 +724,28 @@ h2 {
 }
 
 .algorithmNote {
-  background: #f4ead9;
-  border: 1px solid var(--line);
-  border-radius: 8px;
   color: var(--muted);
   font-size: 0.9rem;
-  font-weight: 750;
-  line-height: 1.45;
+  font-weight: 650;
+  line-height: 1.55;
   margin: -6px 0 14px;
-  padding: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 0 0 0 12px;
+  border-left: 3px solid var(--line);
+}
+
+.algorithmNote ul {
+  display: grid;
+  gap: 7px;
+  list-style: disc;
+  margin: 0;
+  min-width: 0;
+  padding-left: 18px;
+}
+
+.algorithmNote li {
+  min-width: 0;
 }
 
 .search input {

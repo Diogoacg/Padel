@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ListSkeleton } from "@/app/components/LoadingSkeleton";
+import RatingAlgorithmNote from "@/app/components/RatingAlgorithmNote";
 import {
   useActiveSeason,
   useCreatePlayer,
@@ -95,6 +96,7 @@ export default function PlayersPage() {
             <h2>Tabela da vergonha</h2>
           </div>
           <button
+            aria-controls="rating-algorithm-note"
             aria-expanded={showAlgorithm}
             aria-label="Ver algoritmo do rating"
             className="iconButton"
@@ -106,17 +108,7 @@ export default function PlayersPage() {
           </button>
         </div>
 
-        {showAlgorithm ? (
-          <div className="algorithmNote">
-            Elo por equipas: todos começam em 1000, calcula-se a média das duas
-            duplas e o delta vem da dificuldade esperada. Um 2-1 multiplica o
-            delta por 0,90 e um 2-0 por 1,40. Depois de 30 dias sem jogar,
-            perdes temporariamente 25 pontos por semana iniciada, até 200.
-            Se regressares após 60 dias, parte dessa penalização passa a perda
-            permanente: 10%, mais 10 pontos percentuais por semana iniciada,
-            até 50%. Cada trimestre recomeça em 1000.
-          </div>
-        ) : null}
+        {showAlgorithm ? <RatingAlgorithmNote /> : null}
 
         {displayError ? <div className="notice">{displayError}</div> : null}
         {success ? <div className="notice successNotice">{success}</div> : null}

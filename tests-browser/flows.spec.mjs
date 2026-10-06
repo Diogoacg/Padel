@@ -268,6 +268,36 @@ test('home ranking fills all five places with players who have matches', async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });
 
+test('mobile rating algorithm is consistent on home and player ranking', async ({ page }) => {
+  await mockApi(page);
+  await page.setViewportSize({ width: 320, height: 740 });
+
+  const algorithmButton = page.getByRole('button', { name: 'Ver algoritmo do rating', exact: true });
+  const algorithmNote = page.getByRole('complementary', { name: 'Como funciona o rating' });
+
+  await page.goto('/');
+  await algorithmButton.click();
+  await expect(algorithmButton).toHaveAttribute('aria-expanded', 'true');
+  await expect(algorithmNote).toBeVisible();
+  const homeAlgorithm = await algorithmNote.innerText();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  await page.goto('/jogadores');
+  await algorithmButton.click();
+  await expect(algorithmButton).toHaveAttribute('aria-expanded', 'true');
+  await expect(algorithmNote).toBeVisible();
+  const playersAlgorithm = await algorithmNote.innerText();
+
+  expect(playersAlgorithm).toBe(homeAlgorithm);
+  for (const expected of [/1,40/, /0,90/, /30 dias/, /25 pontos/, /200/, /dia 61/, /50%/, /trimestre/, /1000/]) {
+    expect(playersAlgorithm).toMatch(expected);
+  }
+  for (const outdated of [/1[,.]30/, /21 dias/, /3 pontos/]) {
+    expect(playersAlgorithm).not.toMatch(outdated);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
 test('new result starts empty, accepts 2–1 and sends entered sets', async ({ page }) => {
   const writes = await mockApi(page);
   await page.goto('/registar');
